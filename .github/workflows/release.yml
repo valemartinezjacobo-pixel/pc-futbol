@@ -1,0 +1,70 @@
+name: Compilar instaladores de escritorio
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build-tauri:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-latest"
+            args: "--target universal-apple-darwin"
+          - platform: "ubuntu-22.04"
+            args: ""
+          - platform: "windows-latest"
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Descargar el codigo
+        uses: actions/checkout@v4
+
+      - name: Dependencias del sistema (solo Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libgtk-3-dev libayatana-appindicator3-dev build-essential curl wget file libssl-dev libxdo-dev
+
+      - name: Instalar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Instalar Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Cache de Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Instalar la CLI de Tauri
+        run: npm install -g @tauri-apps/cli@^2
+
+      - name: Preparar la web (dist) y generar iconos
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp index.html manifest.webmanifest sw.js icon-192.png icon-512.png icon-512-maskable.png favicon-64.png dist/
+          tauri icon icon-1024.png
+
+      - name: Compilar y publicar instaladores
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "PC Simulador Futbol __VERSION__"
+          releaseBody: "Instaladores de escritorio. Windows: .exe/.msi · macOS: .dmg · Linux: .AppImage/.deb. Sin firma digital: en la primera apertura puede aparecer un aviso del sistema (se permite manualmente)."
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
