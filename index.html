@@ -408,6 +408,24 @@ body{background:radial-gradient(1300px 700px at 50% -150px,#0e3a50,#03141d 65%) 
 #pa2-next-card .escudo.exl{font-size:12px}
 #pa2-next-card .vs-eq{font-size:12px}
 @media(max-width:680px){#pa2-final .marcador-xl{font-size:34px}}
+/* MARCADOR profesional del resultado */
+.resultado-card{border-width:2px!important}
+.resultado-card.win{border-color:#3ddc84!important;box-shadow:0 0 22px rgba(61,220,132,.25)}
+.resultado-card.lose{border-color:#ff6b6b!important;box-shadow:0 0 22px rgba(255,107,107,.22)}
+.resultado-card.draw{border-color:#ffd24d!important;box-shadow:0 0 22px rgba(255,210,77,.22)}
+.res-banner{text-align:center;font-weight:900;letter-spacing:3px;font-size:16px;padding:9px;border-radius:8px;margin-bottom:8px;text-transform:uppercase}
+.res-banner.win{background:linear-gradient(180deg,#0f5b3a,#0a3a26);color:#7dffb0}
+.res-banner.lose{background:linear-gradient(180deg,#5b1f1f,#3a1414);color:#ff9b9b}
+.res-banner.draw{background:linear-gradient(180deg,#5b4a14,#3a2f0c);color:#ffe08a}
+.res-grid{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:6px 4px}
+.res-eq{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+.res-esc .esc.xl,.res-esc .escudo.exl{width:62px;height:62px}
+.res-esc .esc.xl img{width:62px;height:62px}
+.res-nom{font-weight:800;font-size:13px;letter-spacing:.5px;color:#eaf7ff;line-height:1.15}
+.res-score{font-family:var(--mono);font-size:44px;font-weight:900;color:#fff;display:flex;align-items:center;gap:6px;background:#04121b;border:2px solid #2c7d9e;border-radius:12px;padding:6px 16px;box-shadow:inset 0 0 18px rgba(0,0,0,.8)}
+.res-score span{color:#4dc3ff;font-size:28px}
+.res-gol{font-size:10.5px;color:#9fc3d8;font-family:var(--mono);line-height:1.4}
+@media(max-width:680px){.res-score{font-size:32px;padding:5px 11px}.res-banner{font-size:13px;letter-spacing:2px}.res-esc .esc.xl,.res-esc .escudo.exl{width:46px;height:46px}.res-esc .esc.xl img{width:46px;height:46px}.res-nom{font-size:11px}}
 /* arrastrar jugadores por el campo (TÁCTICAS / ALINEACIÓN) */
 .punto-wrap.clic{touch-action:none;cursor:grab}
 .punto-wrap.clic:active{cursor:grabbing}
@@ -2080,6 +2098,8 @@ function jugarSiguiente(silencio){
   else if(ev.t==="liga")jugarJornadaLiga();
   else if(ev.t==="copa")jugarRondaCopa(G.copa,copaNombre());
   else jugarUEFA(torneoDe(ev.t),nombreComp(ev.t));
+  // guarda APARTE el último partido del usuario (la sim continua sobrescribe G.ultimo con partidos de otros equipos)
+  if(G.ultimo&&G.ultimo.mi)G.ultimoMio=G.ultimo;
   ojeadoresCheck();
   // las lesiones se recuperan con el paso de las semanas
   G.lesiones=G.lesiones||{};
@@ -4266,30 +4286,32 @@ function renderPar(){
       $("pa2-pre").innerHTML=`<div></div><div class="vs-eq"><span style="font-size:16px">${pr.tipo}</span><span class="vs-detalle">${pr.fuera?"Estás eliminado: la ronda se simulará.":"Eliminatoria a partido único · rival por sorteo"}</span></div><div></div>`;
     }
   }
-  // final de partido
-  const u=G.ultimo;
-  if(u&&u.mi){
-    const m=u.mi;
-    const ln=g=>g.map(x=>`<div class="gl">⚽ ${x.nombre} <span class="min">${x.min}'</span></div>`).join("")||`<div style="color:var(--gris)">—</div>`;
+  // RESULTADO de TU último partido (marcador profesional con escudos) — preservado aparte
+  const um=G.ultimoMio;
+  if(um&&um.mi){
+    const m=um.mi;
+    const ln=g=>g.map(x=>`<div>⚽ ${apellido(x.nombre)} ${x.min}'</div>`).join("")||"";
     const gA=m.local?m.r.gL:m.r.gV,gB=m.local?m.r.gV:m.r.gL;
-    const res=gA>gB?"VICTORIA":gA<gB?"DERROTA":"EMPATE";
-    $("pa2-final").innerHTML=`<div class="hub-card"><h3>FINAL DE PARTIDO · ${u.tipo}${m.pen?" · PENALTIS":""} · <span class="${gA>gB?"verde":gA<gB?"rojo":"amarillo"}">${res}</span></h3>
-      <div class="vs-panel">
-        <div class="vs-eq">${m.local?miClub().n.toUpperCase():m.rival.n.toUpperCase()}<div style="text-align:left;font-size:12px">${ln(m.r.golesL)}</div></div>
-        <span class="marcador-xl">${m.r.gL} - ${m.r.gV}</span>
-        <div class="vs-eq">${m.local?m.rival.n.toUpperCase():miClub().n.toUpperCase()}<div style="text-align:right;font-size:12px">${ln(m.r.golesV)}</div></div>
+    const cls=gA>gB?"win":gA<gB?"lose":"draw";
+    const etiqueta=gA>gB?"✓ VICTORIA":gA<gB?"✗ DERROTA":"= EMPATE";
+    const home=m.local?miClub():m.rival, away=m.local?m.rival:miClub();
+    $("pa2-final").innerHTML=`<div class="hub-card resultado-card ${cls}">
+      <div class="res-banner ${cls}">${etiqueta} · ${um.tipo}${m.pen?" · PENALTIS":""}</div>
+      <div class="res-grid">
+        <div class="res-eq"><div class="res-esc">${escudoC(home,true)}</div><div class="res-nom">${home.n.toUpperCase()}</div><div class="res-gol">${ln(m.r.golesL)}</div></div>
+        <div class="res-score">${m.r.gL}<span>-</span>${m.r.gV}</div>
+        <div class="res-eq"><div class="res-esc">${escudoC(away,true)}</div><div class="res-nom">${away.n.toUpperCase()}</div><div class="res-gol">${ln(m.r.golesV)}</div></div>
       </div>
-      ${u.asist?`<div class="final-pie"><span>ESPECTADORES: ${fmtN(u.asist)}</span><span>RECAUDACIÓN: ${fmtE(u.rec)}</span><span>AFORO: ${Math.round(u.asist/G.capacidad*100)}%</span></div>`:""}
-      ${u.extras?`<div class="final-pie" style="flex-direction:column;gap:4px;align-items:flex-start">
-        ${u.extras.amA.length||u.extras.amB.length?`<span>🟨 ${[...u.extras.amA.map(x=>x.n+" "+x.min+"'"),...u.extras.amB.map(x=>x.n+" "+x.min+"' (rival)")].join(" · ")}</span>`:""}
-        ${u.extras.rojaA?`<span>🟥 ${u.extras.rojaA.n} ${u.extras.rojaA.min}'</span>`:""}${u.extras.rojaB?`<span>🟥 ${u.extras.rojaB.n} ${u.extras.rojaB.min}' (rival)</span>`:""}
-        ${u.extras.cambios.length?`<span>🔁 ${u.extras.cambios.map(c=>c.sale+" ⇄ "+c.entra+" "+c.min+"'").join(" · ")}</span>`:""}
-        ${u.extras.lesion?`<span class="rojo">🚑 ${u.extras.lesion.n}: ${u.extras.lesion.tipo} (${u.extras.lesion.sem} sem de baja)</span>`:""}
+      ${um.asist?`<div class="final-pie"><span>👥 ${fmtN(um.asist)}</span><span>💶 ${fmtE(um.rec)}</span><span>🏟 ${Math.round(um.asist/G.capacidad*100)}%</span></div>`:""}
+      ${um.extras?`<div class="final-pie" style="flex-direction:column;gap:4px;align-items:flex-start">
+        ${um.extras.amA.length||um.extras.amB.length?`<span>🟨 ${[...um.extras.amA.map(x=>x.n+" "+x.min+"'"),...um.extras.amB.map(x=>x.n+" "+x.min+"' (rival)")].join(" · ")}</span>`:""}
+        ${um.extras.rojaA?`<span>🟥 ${um.extras.rojaA.n} ${um.extras.rojaA.min}'</span>`:""}${um.extras.rojaB?`<span>🟥 ${um.extras.rojaB.n} ${um.extras.rojaB.min}' (rival)</span>`:""}
+        ${um.extras.lesion?`<span class="rojo">🚑 ${um.extras.lesion.n}: ${um.extras.lesion.tipo} (${um.extras.lesion.sem} sem)</span>`:""}
       </div>`:""}
     </div>`;
-  }else if(u){
-    $("pa2-final").innerHTML=`<div class="noticia">No participaste en: ${u.tipo}</div>`;
-  }else $("pa2-final").innerHTML="";
+  }else $("pa2-final").innerHTML=`<div class="aviso-tac" style="text-align:center">Aún no has jugado ningún partido. Pulsa <b>SIMULAR PARTIDO</b> abajo.</div>`;
+  // RESULTADOS de la última fecha jugada (todos los partidos)
+  const u=G.ultimo;
   $("pa2-otros-tit").textContent=u?("RESULTADOS · "+u.tipo.toUpperCase()):"RESULTADOS DE LA FECHA";
   $("pa2-otros").innerHTML=u?u.lista.map(x=>`<div class="cal-item ${x.mio?"mio":""}"><span>${x.an}</span><span class="resf">${x.gL}-${x.gV}${x.pen?" (pen)":""}</span><span>${x.bn}</span></div>`).join(""):`<div class="noticia">Todavía no se ha jugado ninguna fecha.</div>`;
   $("pa2-resto").disabled=!!G.finTemporada;
