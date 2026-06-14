@@ -806,18 +806,26 @@ img,svg,canvas,table{max-width:100%}
   <div id="scr-datos" class="scr"><div class="pcf-panel">
     <div class="pcf-cab"><span>ACTUALIZAR A PLANTILLAS ACTUALES</span><button class="btn-ang" data-go="hub">◀ VOLVER</button></div>
     <div class="pcf-cuerpo">
-      <div class="aviso-tac" style="font-size:12px;line-height:1.6">
-        <b>¿Cómo actualizo el juego a las plantillas reales del momento?</b><br>
-        1️⃣ Entra en <a href="https://www.api-football.com" target="_blank" style="color:var(--cian);font-weight:700">www.api-football.com</a> y crea una cuenta gratuita (botón "Sign up").<br>
-        2️⃣ En tu panel de usuario copia tu <b>API key</b> (una clave de letras y números).<br>
-        3️⃣ Pégala abajo y pulsa GUARDAR CLAVE.<br>
-        4️⃣ Pulsa ACTUALIZAR en la liga que quieras: se descargan <b>equipos, plantillas, edades y escudos reales</b> de la temporada en curso.<br>
-        ⚠ El plan gratuito permite 100 peticiones/día y cada liga gasta ~20: actualiza unas 4 ligas al día. Con la clave guardada, el juego se <b>actualiza solo al abrirse</b> (una liga por arranque). Las medias de jugadores que no estaban en el juego se estiman según el nivel de su equipo (la API no da notas). Los datos se aplican a las PARTIDAS NUEVAS.
+      <div class="aviso-tac" style="font-size:12px;line-height:1.7">
+        <b>Actualizar a las plantillas reales (opcional)</b><br>
+        El juego ya trae plantillas 2025-26. Si quieres bajar datos en vivo de <b>API-Football</b>, sigue estos pasos. <b>Solo funciona en la versión web</b> <a href="https://pcsimuladorfutbol.netlify.app" target="_blank" style="color:var(--cian)">pcsimuladorfutbol.netlify.app</a> (en la app instalada o en GitHub Pages el navegador bloquea la conexión).<br><br>
+        <b>1.</b> Entra en <a href="https://dashboard.api-football.com" target="_blank" style="color:var(--cian);font-weight:700">dashboard.api-football.com</a> y regístrate gratis.<br>
+        <b>2.</b> En <b>"Account" / "My Access"</b> copia tu <b>API Key</b> (cadena larga). Usa la clave de <b>api-sports</b>, no la de RapidAPI.<br>
+        <b>3.</b> Pégala abajo, elige <b>temporada</b> y pulsa <b>PROBAR CLAVE</b>: te dice si funciona y cuántas peticiones te quedan.<br>
+        <b>4.</b> Pulsa <b>ACTUALIZAR</b> en una liga (equipos, plantillas, edades y escudos reales).<br><br>
+        ⚠ <b>Plan gratuito:</b> ~100 peticiones/día (cada liga gasta ~20 → unas 4 ligas/día) y suele cubrir <b>hasta la temporada 2023</b>. Si una temporada da error, prueba 2023. Las medias que la API no da se estiman por el nivel del equipo. Se aplica a las PARTIDAS NUEVAS.
       </div>
-      <div class="filtros"><label style="font-size:11px;letter-spacing:1px">CLAVE API</label><input type="text" id="dt-key" placeholder="pega aquí tu API key" style="flex:1;min-width:200px"><button class="btn-ang" id="dt-guardar">GUARDAR CLAVE</button></div>
+      <div class="filtros">
+        <label style="font-size:11px;letter-spacing:1px">CLAVE API</label>
+        <input type="text" id="dt-key" placeholder="pega aquí tu API key de api-sports" style="flex:1;min-width:180px">
+        <label style="font-size:11px;letter-spacing:1px">TEMPORADA</label>
+        <select id="dt-season"><option>2023</option><option>2024</option><option>2025</option><option>2022</option><option>2021</option></select>
+        <button class="btn-ang" id="dt-guardar">GUARDAR</button>
+        <button class="btn-ang dorado" id="dt-probar">🔌 PROBAR CLAVE</button>
+      </div>
       <div id="dt-ligas"></div>
       <div id="dt-msg" class="aviso-tac">Sin actividad.</div>
-      <button class="btn-ang" id="dt-borrar" style="align-self:flex-start">BORRAR DATOS DESCARGADOS</button>
+      <button class="btn-ang peligro" id="dt-borrar" style="align-self:flex-start">BORRAR DATOS DESCARGADOS</button>
     </div>
   </div></div>
 
@@ -3661,8 +3669,9 @@ function bindJuego(){
     if(e.target.id==="dt-guardar"){
       const k=($("dt-key").value||"").trim();
       if(!k){alert("Pega tu clave de API-Football.");return;}
-      localStorage.setItem("pcfm_apikey",k);renderTodo();alert("Clave guardada. Ya puedes actualizar liga a liga (y se refrescará sola al abrir el juego).");return;
+      localStorage.setItem("pcfm_apikey",k);$("dt-msg").textContent="✔ Clave guardada. Pulsa PROBAR CLAVE para comprobar que funciona.";return;
     }
+    if(e.target.id==="dt-probar"){probarClave();return;}
     if(e.target.id==="dt-borrar"){
       if(confirm("¿Borrar los datos descargados y volver a las plantillas integradas 2025-26?")){localStorage.removeItem("pcfm_datos");alert("Datos borrados. Reinicia el juego para aplicar.");}
       return;
@@ -3695,6 +3704,7 @@ function bindJuego(){
     if(e.target.id==="me2-club")renderMer();
     if(e.target.id==="co-filtro")renderContratos();
     if(e.target.id==="al-filtro"){G.alFiltro=e.target.value;renderTodo();}
+    if(e.target.id==="dt-season"){localStorage.setItem("pcfm_apiseason",e.target.value);$("dt-msg").textContent="Temporada seleccionada: "+e.target.value+". Pulsa PROBAR CLAVE o ACTUALIZA una liga.";}
     if(e.target.dataset&&e.target.dataset.entipo){G.entrenoTipo=e.target.dataset.entipo;renderTodo();}
     if(e.target.dataset&&e.target.dataset.enint){G.entrenoInt=e.target.dataset.enint;renderTodo();}
     if(e.target.dataset&&e.target.dataset.contrato){ // acciones de contratos
@@ -4325,12 +4335,31 @@ function buscarEquipoBase(li,nombre){
   return LIGAS[li].equipos.find(e=>{const en=normN(e[0]);return en===nn||en.includes(nn)||nn.includes(en);})||null;
 }
 async function apiGet(path,key){
-  const r=await fetch("https://v3.football.api-sports.io"+path,{headers:{"x-apisports-key":key}});
-  if(!r.ok)throw new Error("HTTP "+r.status);
-  const d=await r.json();
+  // Puente en Netlify: api-football NO permite llamadas directas desde una web (CORS), así que pasamos por una función servidor.
+  let r;
+  try{ r=await fetch("/.netlify/functions/apifootball?path="+encodeURIComponent(path),{headers:{"x-apisports-key":key}}); }
+  catch(e){ throw new Error("No se pudo conectar con el puente de datos. Esta función solo va en la web pcsimuladorfutbol.netlify.app."); }
+  if(r.status===404)throw new Error("La actualización en vivo solo funciona en pcsimuladorfutbol.netlify.app (en la app instalada o en GitHub Pages, no).");
+  let d;try{d=await r.json();}catch(e){throw new Error("Respuesta no válida (HTTP "+r.status+").");}
   const errs=d.errors;
-  if(errs&&((Array.isArray(errs)&&errs.length)||(typeof errs==="object"&&Object.keys(errs).length)))throw new Error(JSON.stringify(errs));
+  if(errs&&((Array.isArray(errs)&&errs.length)||(typeof errs==="object"&&Object.keys(errs).length))){
+    const txt=Array.isArray(errs)?errs.join(" · "):Object.values(errs).join(" · ");
+    throw new Error(txt||"error de la API (revisa la clave o la temporada)");
+  }
+  if(!r.ok&&d.response==null)throw new Error("HTTP "+r.status+(d.error?": "+d.error:""));
   return d.response;
+}
+async function probarClave(){
+  const key=(($("dt-key").value||localStorage.getItem("pcfm_apikey")||"")+"").trim();
+  const msg=t=>{$("dt-msg").textContent=t;};
+  if(!key){msg("✖ Pega primero tu clave de api-sports y pulsa GUARDAR.");return;}
+  localStorage.setItem("pcfm_apikey",key);
+  msg("⏳ Comprobando la clave con api-football...");
+  try{
+    const resp=await apiGet("/status",key);
+    const a=resp.account||{},s=resp.subscription||{},req=resp.requests||{};
+    msg("✔ CLAVE VÁLIDA · Cuenta: "+(a.email||a.firstname||"ok")+" · Plan: "+(s.plan||"?")+" · Peticiones hoy: "+(req.current!=null?req.current:"?")+"/"+(req.limit_day||"?")+". Ya puedes pulsar ACTUALIZAR en una liga.");
+  }catch(e){ msg("✖ "+e.message); }
 }
 let actualizando=false;
 async function actualizarLiga(li,key,msg){
@@ -4338,7 +4367,8 @@ async function actualizarLiga(li,key,msg){
   actualizando=true;
   try{
     msg("Descargando equipos de "+LIGAS[li].nombre+"...");
-    const teams=await apiGet("/teams?league="+API_LIGA_IDS[li]+"&season=2025",key);
+    const season=(localStorage.getItem("pcfm_apiseason")||"2023");
+    const teams=await apiGet("/teams?league="+API_LIGA_IDS[li]+"&season="+season,key);
     const POSMAP={Goalkeeper:"POR",Defender:"DEF",Midfielder:"MED",Attacker:"DEL"};
     const equipos=[];
     for(let i=0;i<teams.length;i++){
@@ -4385,6 +4415,7 @@ async function autoActualizar(){ // al abrir el juego refresca una liga pendient
 }
 function renderDatos(){
   $("dt-key").value=localStorage.getItem("pcfm_apikey")||"";
+  if($("dt-season"))$("dt-season").value=localStorage.getItem("pcfm_apiseason")||"2023";
   let store={};try{store=JSON.parse(localStorage.getItem("pcfm_datos")||"{}");}catch(e){}
   $("dt-ligas").innerHTML=LIGAS.map((l,li)=>{
     const d=store[li];

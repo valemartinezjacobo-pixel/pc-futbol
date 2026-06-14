@@ -1,0 +1,8 @@
+# Configuración de Netlify para PC Simulador Fútbol
+# Publica la web (raíz) y habilita la función puente para API-Football.
+[build]
+  publish = "."
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
