@@ -395,6 +395,24 @@ body{background:radial-gradient(1300px 700px at 50% -150px,#0e3a50,#03141d 65%) 
 .sp-credito b{color:#9fc3d8;font-weight:600}
 .marca-agua{position:fixed;right:7px;bottom:5px;z-index:9990;font-size:9px;letter-spacing:.5px;color:rgba(159,195,216,.28);font-family:var(--mono);pointer-events:none;user-select:none}
 @media(max-width:600px){.marca-agua{font-size:8px}}
+/* cartel claro de JORNADA + FECHA junto al icono de noticias */
+.tb-chip{display:inline-flex;align-items:center;gap:5px;background:#0a2433;border:1px solid #4dc3ff;border-radius:8px;padding:5px 11px;font-family:var(--mono);font-weight:700;font-size:12.5px;color:#eaf7ff;letter-spacing:.5px;white-space:nowrap;box-shadow:0 0 8px rgba(77,195,255,.25)}
+/* PARTIDO: resultado protagonista arriba, próximo partido compacto abajo */
+#pa2-final .marcador-xl{font-size:46px}
+#pa2-final>.hub-card{border-color:#4dc3ff;box-shadow:0 0 18px rgba(77,195,255,.25)}
+#pa2-next-card{opacity:.96}
+#pa2-next-card .vs-panel{padding:6px}
+#pa2-next-card .marcador-xl{font-size:22px;padding:4px 10px}
+#pa2-next-card .esc.xl,#pa2-next-card .escudo.exl{width:38px;height:38px}
+#pa2-next-card .esc.xl img{width:38px;height:38px}
+#pa2-next-card .escudo.exl{font-size:12px}
+#pa2-next-card .vs-eq{font-size:12px}
+@media(max-width:680px){#pa2-final .marcador-xl{font-size:34px}}
+/* arrastrar jugadores por el campo (TÁCTICAS / ALINEACIÓN) */
+.punto-wrap.clic{touch-action:none;cursor:grab}
+.punto-wrap.clic:active{cursor:grabbing}
+.punto-wrap.dragging{z-index:6}
+.punto-wrap.dragging .punto{box-shadow:0 0 0 4px #ffd24d,0 0 22px #ffd24d;transform:scale(1.3)}
 
 /* ============================================================
    ============  REDISEÑO MOBILE-FIRST  =======================
@@ -422,6 +440,7 @@ img,svg,canvas,table{max-width:100%}
   .tb-centro{text-align:center}
   .media-circ{width:34px;height:34px;font-size:13px}
   #tb-news{font-size:20px;padding:6px 11px;margin-left:auto}
+  .tb-chip{width:100%;justify-content:center;font-size:11.5px;margin-top:3px}
 
   /* ---------- HUB: una columna, balón grande centrado ---------- */
   .hub{grid-template-columns:1fr;grid-template-areas:"centro" "partido" "comp" "estilo" "club" "mercado";gap:9px}
@@ -722,14 +741,19 @@ img,svg,canvas,table{max-width:100%}
   <div id="scr-partido" class="scr"><div class="pcf-panel">
     <div class="pcf-cab"><span id="pa2-tit">PARTIDO</span><button class="btn-ang" data-go="hub">◀ VOLVER</button></div>
     <div class="pcf-cuerpo">
-      <div class="vs-panel" id="pa2-pre"></div>
-      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-        <button class="btn-ang dorado" id="pa2-jugar" style="font-size:13px;padding:10px 30px">▶ JUGAR</button>
-        <button class="btn-ang" id="pa2-virtual">MODO: SIMULACIÓN RÁPIDA</button>
-        <button class="btn-ang" id="pa2-resto" data-go="calendario">📅 CALENDARIO · ELEGIR HASTA DÓNDE SIMULAR</button>
-      </div>
+      <!-- RESULTADO (protagonista, arriba) -->
       <div id="pa2-final"></div>
       <div class="hub-card"><h3 id="pa2-otros-tit">RESULTADOS DE LA FECHA</h3><div class="scroll-md" id="pa2-otros"></div></div>
+      <!-- PRÓXIMO PARTIDO + SIMULAR (compacto, abajo) -->
+      <div class="hub-card" id="pa2-next-card">
+        <h3>📅 PRÓXIMO PARTIDO · SIMULAR SIGUIENTE</h3>
+        <div class="vs-panel" id="pa2-pre"></div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          <button class="btn-ang dorado" id="pa2-jugar" style="font-size:13px;padding:10px 30px">▶ SIMULAR PARTIDO</button>
+          <button class="btn-ang" id="pa2-virtual">MODO: SIMULACIÓN RÁPIDA</button>
+          <button class="btn-ang" id="pa2-resto" data-go="calendario">📅 ELEGIR HASTA DÓNDE SIMULAR</button>
+        </div>
+      </div>
     </div>
   </div></div>
 
@@ -1412,8 +1436,45 @@ function escudoC(c,xl){
   return c.logo?`<span class="esc ${xl?"xl":""}"><img loading="lazy" src="${c.logo}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">${fb}</span>`:fb;
 }
 
-const FORMS={"4-4-2":{POR:1,DEF:4,MED:4,DEL:2},"4-3-3":{POR:1,DEF:4,MED:3,DEL:3},"4-2-3-1":{POR:1,DEF:4,MED:5,DEL:1},"3-5-2":{POR:1,DEF:3,MED:5,DEL:2},"5-4-1":{POR:1,DEF:5,MED:4,DEL:1}};
-const FORM_TAC={"4-4-2":{gf:0,gc:0},"4-3-3":{gf:.14,gc:.10},"4-2-3-1":{gf:.05,gc:-.04},"3-5-2":{gf:.10,gc:.08},"5-4-1":{gf:-.16,gc:-.20}};
+const FORMS={
+  "4-4-2":{POR:1,DEF:4,MED:4,DEL:2},
+  "4-4-2 Ofensiva":{POR:1,DEF:4,MED:4,DEL:2},
+  "4-3-3":{POR:1,DEF:4,MED:3,DEL:3},
+  "4-3-3 Ofensiva":{POR:1,DEF:4,MED:3,DEL:3},
+  "4-3-3 Defensiva":{POR:1,DEF:4,MED:3,DEL:3},
+  "4-2-3-1":{POR:1,DEF:4,MED:5,DEL:1},
+  "4-1-4-1":{POR:1,DEF:4,MED:5,DEL:1},
+  "4-1-2-1-2 Rombo":{POR:1,DEF:4,MED:4,DEL:2},
+  "3-4-3":{POR:1,DEF:3,MED:4,DEL:3},
+  "3-5-2":{POR:1,DEF:3,MED:5,DEL:2},
+  "5-3-2":{POR:1,DEF:5,MED:3,DEL:2},
+  "5-4-1":{POR:1,DEF:5,MED:4,DEL:1}
+};
+const FORM_TAC={
+  "4-4-2":{gf:0,gc:0},
+  "4-4-2 Ofensiva":{gf:.12,gc:.10},
+  "4-3-3":{gf:.14,gc:.10},
+  "4-3-3 Ofensiva":{gf:.22,gc:.16},
+  "4-3-3 Defensiva":{gf:.04,gc:-.02},
+  "4-2-3-1":{gf:.05,gc:-.04},
+  "4-1-4-1":{gf:-.02,gc:-.10},
+  "4-1-2-1-2 Rombo":{gf:.08,gc:.04},
+  "3-4-3":{gf:.20,gc:.14},
+  "3-5-2":{gf:.10,gc:.08},
+  "5-3-2":{gf:-.10,gc:-.16},
+  "5-4-1":{gf:-.16,gc:-.20}
+};
+// desplazamiento vertical de las líneas por formación (negativo = más adelantado/ofensivo)
+const FORM_SHIFT={
+  "4-4-2 Ofensiva":{def:-4,med:-7,del:-4},
+  "4-3-3 Ofensiva":{def:-5,med:-8,del:-5},
+  "4-3-3 Defensiva":{def:7,med:8,del:6},
+  "4-1-4-1":{def:3,med:3,del:5},
+  "4-1-2-1-2 Rombo":{def:0,med:-3,del:-3},
+  "3-4-3":{def:-3,med:-5,del:-5},
+  "5-3-2":{def:6,med:5,del:2},
+  "5-4-1":{def:7,med:6,del:4}
+};
 const MENT={"Equilibrada":{gf:0,gc:0},"Ofensiva":{gf:.20,gc:.14},"Defensiva":{gf:-.16,gc:-.18}};
 const PRES={"Media":{gf:0,gc:0},"Alta":{gf:.08,gc:.05},"Baja":{gf:-.06,gc:-.05}};
 const NOMBRES=[
@@ -3122,9 +3183,15 @@ function renderInicio(){
 ================================================================== */
 let uiOk=false,scrActual="hub";
 function coordsForm(form){
-  const req=FORMS[form],out=[{x:50,y:91,p:"POR"}];
-  const fila=(n,y,p)=>{for(let i=0;i<n;i++)out.push({x:(100/(n+1))*(i+1),y,p});};
-  fila(req.DEF,71,"DEF");fila(req.MED,46,"MED");fila(req.DEL,20,"DEL");
+  const req=FORMS[form],sh=FORM_SHIFT[form]||{},out=[{x:50,y:91,p:"POR"}];
+  // la mentalidad también adelanta/atrasa las líneas en el campo
+  const m=(typeof G!=="undefined"&&G)?G.ment:"Equilibrada";
+  const mShift=m==="Ofensiva"?-4:m==="Defensiva"?5:0;
+  const cl=v=>Math.max(14,Math.min(86,v));
+  const fila=(n,y,p)=>{for(let i=0;i<n;i++)out.push({x:(100/(n+1))*(i+1),y:cl(y),p});};
+  fila(req.DEF,71+(sh.def||0)+mShift*0.7,"DEF");
+  fila(req.MED,46+(sh.med||0)+mShift,"MED");
+  fila(req.DEL,20+(sh.del||0)+mShift*0.8,"DEL");
   return out;
 }
 function apellido(n){const ps=n.split(" ");return ps[ps.length-1];}
@@ -3412,6 +3479,11 @@ function bindJuego(){
       else if(acc.dataset.acc==="fichar")abrirNego(+acc.dataset.li,+acc.dataset.ci,uid);
       return;
     }
+    // ENTRENAMIENTO: cambiar tipo de plan e intensidad (son botones → click, no change)
+    const entipo=e.target.closest("[data-entipo]");
+    if(entipo){G.entrenoTipo=entipo.dataset.entipo;renderTodo();return;}
+    const enint=e.target.closest("[data-enint]");
+    if(enint){G.entrenoInt=enint.dataset.enint;renderTodo();return;}
     // ALINEACIÓN: cambio directo titular → suplente (pulsa el titular y luego el suplente)
     const pick=e.target.closest("[data-pick]");
     if(pick){
@@ -3505,6 +3577,7 @@ function bindJuego(){
     // intercambios en el campo de TÁCTICAS: jugador↔jugador o banquillo→campo
     const dot=e.target.closest("[data-slot]");
     if(dot){
+      if(window._dragHandled){window._dragHandled=false;return;} // ya gestionado por arrastre
       const i=+dot.dataset.slot;
       if(selBanca!=null){ // cambio: entra del banquillo por el del slot
         const fuera=G.slots[i];
@@ -3699,7 +3772,8 @@ function renderNewsDrop(){
 function renderTop(){
   const c=miClub();
   const sinVer=Math.max(0,(G.noticias||[]).length-(G.notVisto||0));
-  $("tb-mi").innerHTML=`${escudoC(c)} <span>${c.n.toUpperCase()}</span> ${mediaCirc(fuerzaUser())} <button id="tb-news" title="Noticias">📰${sinVer>0?`<span class="badge">${Math.min(99,sinVer)}</span>`:""}</button>`;
+  const jorTxt=G.jornada>0?("JORNADA "+G.jornada+"/"+G.cal.length):"PRETEMPORADA";
+  $("tb-mi").innerHTML=`${escudoC(c)} <span>${c.n.toUpperCase()}</span> ${mediaCirc(fuerzaUser())} <button id="tb-news" title="Noticias">📰${sinVer>0?`<span class="badge">${Math.min(99,sinVer)}</span>`:""}</button> <span class="tb-chip" title="Jornada y fecha actual">🗓 ${jorTxt} · ${fechaTxt(fechaActual())}</span>`;
   const pr=proximoRival();
   $("tb-rival").innerHTML=G.finTemporada?`<span style="color:var(--amarillo)">TEMPORADA FINALIZADA</span>`:
     pr.rival?`${mediaCirc(fuerzaClub(pr.rival))} <span>${pr.rival.n.toUpperCase()}</span> ${escudoC(pr.rival)}`:
@@ -3742,6 +3816,40 @@ function renderCampo(elId,interactivo){
     html+=`<div class="punto-wrap ${interactivo?"clic":""} ${interactivo&&selSlot===i?"sel":""} ${j&&selTit===j.uid?"foco":""}" ${interactivo?`data-slot="${i}"`:""} style="left:${pt.x}%;top:${pt.y}%" title="${j?j.n+" · "+j.p+" "+j.r+(mal?" (fuera de posición)":""):"hueco"}"><div class="punto ${pt.p==="POR"?"gk":""} ${mal?"fp":""} ${j?"":"hueco"} ${j&&indispo(j.uid)?"fp":""}">${j?(j.dorsal||j.r):"+"}</div><span>${j?apellido(j.n):pos[i]}</span></div>`;
   });
   $(elId).innerHTML=html;
+  if(interactivo)bindCampoDrag(elId);
+}
+/* ---------- arrastrar jugadores por el campo (ratón + táctil) ---------- */
+let dragSlot=null;
+function bindCampoDrag(id){
+  const campo=document.getElementById(id);
+  if(!campo||campo.dataset.dragInit)return;
+  campo.dataset.dragInit="1";
+  let sx=0,sy=0;
+  campo.addEventListener("pointerdown",e=>{
+    const w=e.target.closest(".punto-wrap.clic[data-slot]");
+    if(!w)return;
+    dragSlot=+w.dataset.slot;sx=e.clientX;sy=e.clientY;
+    w.classList.add("dragging");
+    try{campo.setPointerCapture(e.pointerId);}catch(_){}
+  });
+  campo.addEventListener("pointerup",e=>{
+    const start=dragSlot;dragSlot=null;
+    campo.querySelectorAll(".dragging").forEach(x=>x.classList.remove("dragging"));
+    if(start==null)return;
+    const moved=Math.hypot(e.clientX-sx,e.clientY-sy)>14;
+    const el=document.elementFromPoint(e.clientX,e.clientY);
+    const w=el&&el.closest?el.closest(".punto-wrap.clic[data-slot]"):null;
+    const target=w?+w.dataset.slot:null;
+    if(target!=null&&target!==start){
+      // intercambia los dos jugadores de posición en el campo
+      const t=G.slots[start];G.slots[start]=G.slots[target];G.slots[target]=t;
+      G.xi=G.slots.filter(u=>u!=null);
+      window._dragHandled=true;selSlot=null;selBanca=null;renderTodo();
+    }else if(moved){
+      window._dragHandled=true; // se arrastró pero sin destino válido: ignora el click posterior
+    }
+  });
+  campo.addEventListener("pointercancel",()=>{dragSlot=null;campo.querySelectorAll(".dragging").forEach(x=>x.classList.remove("dragging"));});
 }
 function mediasHTML(){
   const xi=xiJugadores();
@@ -4148,7 +4256,7 @@ function renderPar(){
       <span class="vs-detalle">Al comenzar la nueva temporada: evolución y retiradas, canteranos y ojeados nuevos, fichajes de la IA, ascensos y descensos, ofertas de patrocinio, Torneo de Verano y mercado abierto (junio – 1 de septiembre).</span></div><div></div>`;
   }else{
     $("pa2-tit").textContent="PARTIDO";
-    btn.textContent="▶ JUGAR";
+    btn.textContent="▶ SIMULAR PARTIDO";
     const pr=proximoRival();
     if(pr.rival){
       const yo=`<div class="vs-eq">${escudoC(miClub(),true)}${miClub().n.toUpperCase()}${mediaCirc(fuerzaUser())}</div>`;
