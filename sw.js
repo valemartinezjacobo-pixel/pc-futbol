@@ -1,7 +1,7 @@
 /* Service Worker de PC Simulador Fútbol
    Estrategia: precarga del "app shell" + cache-first para recursos propios.
    Sube el número de versión (CACHE) cuando publiques cambios para forzar la actualización. */
-const CACHE = "pcfutbol-v1";
+const CACHE = "pcfutbol-v2";
 const ASSETS = [
   ".",
   "index.html",
@@ -33,6 +33,8 @@ self.addEventListener("fetch", e => {
 
   // Recursos de otro origen (logos remotos, API de fútbol): red directa, sin cachear.
   if (url.origin !== self.location.origin) return;
+  // Funciones de Netlify (puente API-Football): NUNCA cachear ni interceptar.
+  if (url.pathname.startsWith("/.netlify/")) return;
 
   // Navegaciones: intenta red y cae a la versión cacheada (offline).
   if (req.mode === "navigate") {

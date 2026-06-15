@@ -4337,7 +4337,7 @@ function buscarEquipoBase(li,nombre){
 async function apiGet(path,key){
   // Puente en Netlify: api-football NO permite llamadas directas desde una web (CORS), así que pasamos por una función servidor.
   let r;
-  try{ r=await fetch("/.netlify/functions/apifootball?path="+encodeURIComponent(path),{headers:{"x-apisports-key":key}}); }
+  try{ r=await fetch("/.netlify/functions/apifootball?path="+encodeURIComponent(path)+"&key="+encodeURIComponent(key)+"&t="+Date.now(),{headers:{"x-apisports-key":key},cache:"no-store"}); }
   catch(e){ throw new Error("No se pudo conectar con el puente de datos. Esta función solo va en la web pcsimuladorfutbol.netlify.app."); }
   if(r.status===404)throw new Error("La actualización en vivo solo funciona en pcsimuladorfutbol.netlify.app (en la app instalada o en GitHub Pages, no).");
   let d;try{d=await r.json();}catch(e){throw new Error("Respuesta no válida (HTTP "+r.status+").");}
