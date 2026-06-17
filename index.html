@@ -761,6 +761,7 @@ img,svg,canvas,table{max-width:100%}
     <div class="pcf-cuerpo">
       <!-- RESULTADO (protagonista, arriba) -->
       <div id="pa2-final"></div>
+      <div id="pa2-cuenta" class="oculto" style="text-align:center;margin:6px 0 2px;color:#9fc3d8;font-size:12px;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap"></div>
       <div class="hub-card"><h3 id="pa2-otros-tit">RESULTADOS DE LA FECHA</h3><div class="scroll-md" id="pa2-otros"></div></div>
       <!-- PRÓXIMO PARTIDO + SIMULAR (compacto, abajo) -->
       <div class="hub-card" id="pa2-next-card">
@@ -3357,6 +3358,18 @@ let avTimer=null, avDia=0, avIni=0, avMeta=0, avChat0=0;
 const AV_VEL=170; // milisegundos por día mostrado
 function diaMid(ms){return Math.floor(ms/DIA_MS)*DIA_MS;} // normaliza a medianoche
 
+let postPartInt=null;
+function traseElPartido(){ // muestra el RESULTADO 5 s antes de arrancar el calendario (con opción de avanzar ya)
+  if(postPartInt){clearInterval(postPartInt);postPartInt=null;}
+  irA("partido"); // el marcador final queda como protagonista
+  const c=$("pa2-cuenta");
+  if(!c){iniciarAvance();return;}
+  let seg=5;
+  const ir=()=>{if(postPartInt){clearInterval(postPartInt);postPartInt=null;}c.classList.add("oculto");c.innerHTML="";iniciarAvance();};
+  const pinta=()=>{c.innerHTML="📋 Resultado final · el calendario avanza en <b style='color:#ffd87a'>"+seg+"</b>s <button class='btn-mini primario' id='pa2-avanzaya'>▶ AVANZAR AHORA</button>";const b=$("pa2-avanzaya");if(b)b.onclick=ir;};
+  c.classList.remove("oculto");pinta();
+  postPartInt=setInterval(()=>{seg--;if(seg<=0){ir();return;}pinta();},1000);
+}
 function iniciarAvance(){
   if(!G||G.finTemporada||!G.agenda[G.evIdx]){renderTodo();return;}
   // 1) arrancamos el contador desde el día del partido recién disputado
@@ -3593,7 +3606,7 @@ function lanzarVirtual(){
   function terminar(){
     fin=true;if(vtAnim)cancelAnimationFrame(vtAnim);
     $("virtual").classList.add("oculto");
-    iniciarAvance(); // tras el partido, el calendario sigue avanzando por días
+    traseElPartido(); // muestra el resultado 5 s y luego avanza el calendario por días
   }
   $("vt-skip").onclick=terminar;
   $("vt-x2").onclick=()=>{vel=vel===1?2.5:1;$("vt-x2").textContent=vel===1?"VELOCIDAD ×2":"VELOCIDAD ×1";};
@@ -3906,7 +3919,7 @@ function bindJuego(){
       const orden=ordenTabla().map(f=>f.i);
       if(orden.indexOf(G.ci)<3&&orden.indexOf(ligaG().clubes.indexOf(pr.rival))<3&&G.jornada>5){importante=true;titulo="⚽ DUELO POR EL TÍTULO";}
     }
-    const despues=()=>{if(G.virtual&&G.ultimo&&G.ultimo.mi)lanzarVirtual();else iniciarAvance();};
+    const despues=()=>{if(G.virtual&&G.ultimo&&G.ultimo.mi)lanzarVirtual();else traseElPartido();};
     if(importante){
       $("anim-tit").textContent=titulo;
       $("anim-izq").innerHTML=escudoC(miClub(),true)+`<span>${miClub().n.toUpperCase()}</span>`;
