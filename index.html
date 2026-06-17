@@ -844,7 +844,7 @@ img,svg,canvas,table{max-width:100%}
       <div class="av-barra"><i id="av-bar" style="width:0%"></i></div>
       <div class="av-evento oculto" id="av-evento"></div>
       <div class="av-log" id="av-log"></div>
-      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn-ang dorado oculto" id="av-cont">▶ CONTINUAR</button><button class="btn-ang" id="av-skip">⏩ IR AL PARTIDO</button><button class="btn-ang peligro" id="av-stop">⏸ DETENER</button></div>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn-ang dorado oculto" id="av-cont">▶ CONTINUAR</button><button class="btn-ang dorado oculto" id="av-jugar">▶ IR AL PARTIDO</button><button class="btn-ang" id="av-skip">⏩ SALTAR DÍAS</button><button class="btn-ang peligro" id="av-stop">⏸ DETENER</button></div>
     </div>
   </div>
 
@@ -3345,67 +3345,122 @@ function irA(s){
   const el=$("scr-"+s);if(el)el.classList.add("visible");
   renderTodo();
 }
-/* ---------- simulación continua por días (con auto-pausa por eventos) ---------- */
-let avTimer=null,avBase=0,avChat0=0;
+/* ---------- CALENDARIO TEMPORAL estilo FIFA Manager / Football Manager ----------
+   Tras resolver TU partido, el tiempo avanza DÍA A DÍA de forma visible:
+   - se actualiza la fecha en pantalla día a día (no es un salto instantáneo),
+   - se resuelven los partidos de OTROS equipos que caen en cada día,
+   - se hace auto-pausa ante eventos importantes (lesión, expulsión, números rojos)
+     o mensajes del club que requieren decisión,
+   - el avance se DETIENE al llegar a TU próximo partido oficial, dejándote listo
+     para pulsar IR AL PARTIDO (o seguir gestionando). */
+let avTimer=null, avDia=0, avIni=0, avMeta=0, avChat0=0;
+const AV_VEL=170; // milisegundos por día mostrado
+function diaMid(ms){return Math.floor(ms/DIA_MS)*DIA_MS;} // normaliza a medianoche
+
 function iniciarAvance(){
-  if(!G||G.finTemporada||userJuegaEv(G.agenda[G.evIdx])){renderTodo();return;}
+  if(!G||G.finTemporada||!G.agenda[G.evIdx]){renderTodo();return;}
+  // 1) arrancamos el contador desde el día del partido recién disputado
+  const prev = G.evIdx>0 ? G.agenda[G.evIdx-1].fecha : fechaActual();
+  avIni = diaMid(prev);
+  avDia = avIni;
+  avMeta = diaMid(G.agenda[G.evIdx].fecha);
   $("avance").classList.remove("oculto");
   $("av-log").innerHTML="";
-  avBase=G.evIdx;
+  avLog("📅 "+fechaTxt(prev)+" · partido disputado. El calendario avanza…");
   avReanudar();
 }
-function avReanudar(){ // (re)lanza el bucle de avance por días tras una pausa por evento
+function avReanudar(){ // (re)lanza el avance por días tras una pausa
   $("av-evento").classList.add("oculto");
-  $("av-cont").classList.add("oculto");
+  $("av-evento").style.animation="";
   avChat0=(G.chat||[]).length;
-  avPaso();
+  avBotones("tick");
+  avTick();
 }
-function avPaso(){
+function avTick(){
   if(!G||G.finTemporada){pararAvance();return;}
-  if(userJuegaEv(G.agenda[G.evIdx])){pararAvance();chatMsg("Secretaría técnica","⚽ Llega tu próximo compromiso: "+(proximoRival()?proximoRival().tipo:"")+". Prepara el once, míster.");renderTodo();return;}
-  G.evFlash=null;
-  jugarSiguiente(true);
-  $("av-fecha").textContent=fechaTxt(fechaActual());
-  $("av-bar").style.width=Math.min(100,((G.evIdx-avBase)/Math.max(1,G.agenda.length-avBase))*100)+"%";
-  const flash=G.evFlash;
-  $("av-log").innerHTML=`<div class="${flash?"imp":""}">${fechaTxt(fechaActual())} · ${G.ultimo?G.ultimo.tipo:"…"}${flash?" — "+flash.txt:""}</div>`+$("av-log").innerHTML;
+  // a) resolver los partidos de otros equipos cuya fecha ya hemos alcanzado
+  let ev=G.agenda[G.evIdx];
+  while(ev && !userJuegaEv(ev) && diaMid(ev.fecha)<=avDia){
+    G.evFlash=null;
+    jugarSiguiente(true);
+    if(G.finTemporada){pararAvance();return;}
+    avLog(fechaTxt(avDia)+" · "+(G.ultimo&&G.ultimo.tipo?G.ultimo.tipo:"jornada de otros equipos"));
+    ev=G.agenda[G.evIdx];
+    if(ev)avMeta=diaMid(ev.fecha);
+  }
+  // b) ¿hemos llegado al día de TU próximo partido?
+  if(userJuegaEv(ev) && avDia>=diaMid(ev.fecha)){ avLlegada(); return; }
+  // c) pintar el día actual y la barra de progreso hasta el próximo partido
+  $("av-fecha").textContent=fechaTxt(avDia);
+  const span=Math.max(DIA_MS,avMeta-avIni);
+  $("av-bar").style.width=Math.min(100,Math.max(0,(avDia-avIni)/span*100))+"%";
   // AUTO-PAUSA 1: mensaje del club que requiere decisión → ir a GRUPO CLUB
-  if((G.chat||[]).length>avChat0&&G.chat[0].acciones){pararAvance();alert("⏸ Simulación pausada: tienes un mensaje importante en GRUPO CLUB.");irA("chat");return;}
-  // AUTO-PAUSA 2: evento significativo (lesión, expulsión, números rojos…) → mostrar y esperar al usuario
-  if(flash){avSoftPause(flash.txt);return;}
-  avTimer=setTimeout(avPaso,420);
+  if((G.chat||[]).length>avChat0 && G.chat[0].acciones){pararAvance();alert("⏸ Simulación pausada: tienes un mensaje importante en GRUPO CLUB.");irA("chat");return;}
+  // AUTO-PAUSA 2: evento significativo (lesión, expulsión, números rojos…)
+  if(G.evFlash){const t=G.evFlash.txt;G.evFlash=null;avLog(fechaTxt(avDia)+" · "+t,true);avSoftPause(t);return;}
+  // d) siguiente día
+  avDia+=DIA_MS;
+  avTimer=setTimeout(avTick,AV_VEL);
 }
-function avSoftPause(txt){ // pausa suave: mantiene el panel y ofrece CONTINUAR / DETENER (estilo FIFA Manager)
+function avLog(txt,imp){ $("av-log").innerHTML=`<div class="${imp?"imp":""}">${txt}</div>`+$("av-log").innerHTML; }
+function avSoftPause(txt){ // pausa suave por evento: mantiene el panel y ofrece CONTINUAR / SALTAR / DETENER
   if(avTimer){clearTimeout(avTimer);avTimer=null;}
+  $("av-evento").style.animation="";
   $("av-evento").textContent="⏸ "+txt;
   $("av-evento").classList.remove("oculto");
-  $("av-cont").classList.remove("oculto");
+  avBotones("pausa");
   pitido();
   renderTop();
 }
-function avSaltar(){ // ⏩ salta la animación día a día y avanza directo hasta tu próximo partido
+function avLlegada(){ // llegada a TU próximo partido: simulación lista, esperando al usuario
+  if(avTimer){clearTimeout(avTimer);avTimer=null;}
+  const ev=G.agenda[G.evIdx]; if(!ev){pararAvance();return;}
+  avDia=diaMid(ev.fecha);
+  $("av-fecha").textContent=fechaTxt(ev.fecha);
+  $("av-bar").style.width="100%";
+  const pr=proximoRival();
+  let det=pr&&pr.tipo?pr.tipo:"Próximo partido";
+  if(pr&&pr.rival)det+=" · "+(pr.local?"vs ":"en ")+pr.rival.n;
+  $("av-evento").style.animation="none";
+  $("av-evento").innerHTML="⚽ "+fechaTxt(ev.fecha)+"<br><b>"+det+"</b><br><span style='font-size:11px;color:#9fc3d8'>Simulación lista. Pulsa IR AL PARTIDO o sigue gestionando.</span>";
+  $("av-evento").classList.remove("oculto");
+  avBotones("llegada");
+  pitido();
+  renderTop();
+}
+function avSaltar(){ // ⏩ salta la animación día a día y va directo a la llegada del próximo partido
   if(avTimer){clearTimeout(avTimer);avTimer=null;}
   if(!G||G.finTemporada){pararAvance();return;}
-  let pasoMsg=false,guard=0;
-  while(!G.finTemporada && !userJuegaEv(G.agenda[G.evIdx]) && guard++<2000){
-    G.evFlash=null;
-    jugarSiguiente(true);
-    // si surge un mensaje del club con decisiones, paramos ahí igualmente
-    if((G.chat||[]).length>avChat0 && G.chat[0].acciones){pasoMsg=true;break;}
+  avResolverNoUsuario();
+  if(G.finTemporada){pararAvance();return;}
+  if((G.chat||[]).length>avChat0 && G.chat[0].acciones){pararAvance();alert("⏸ Simulación pausada: tienes un mensaje importante en GRUPO CLUB.");irA("chat");return;}
+  avLlegada();
+}
+function avResolverNoUsuario(){ // resuelve partidos de otros equipos hasta dejar evIdx en TU próximo partido
+  let guard=0;
+  while(G && !G.finTemporada && G.agenda[G.evIdx] && !userJuegaEv(G.agenda[G.evIdx]) && guard++<3000){
+    G.evFlash=null; jugarSiguiente(true);
   }
-  $("av-fecha").textContent=fechaTxt(fechaActual());
-  $("av-bar").style.width="100%";
-  if(pasoMsg){pararAvance();alert("⏸ Simulación pausada: tienes un mensaje importante en GRUPO CLUB.");irA("chat");return;}
-  if(!G.finTemporada && userJuegaEv(G.agenda[G.evIdx]))
-    chatMsg("Secretaría técnica","⚽ Llega tu próximo compromiso: "+(proximoRival()?proximoRival().tipo:"")+". Prepara el once, míster.");
+}
+function avIrAlPartido(){ // ▶ cierra el calendario y lleva a la pantalla de PARTIDO listo para jugar
   pararAvance();
+  if(G && !G.finTemporada) irA("partido");
 }
 function pararAvance(){
   if(avTimer){clearTimeout(avTimer);avTimer=null;}
+  avResolverNoUsuario(); // garantiza que evIdx quede en TU próximo partido (nunca a medias)
   $("avance").classList.add("oculto");
   $("av-evento").classList.add("oculto");
-  $("av-cont").classList.add("oculto");
+  $("av-evento").style.animation="";
+  avBotones("tick");
   renderTodo();
+}
+function avBotones(modo){ // gestiona qué botones se ven según el estado del avance
+  const cont=$("av-cont"),skip=$("av-skip"),stop=$("av-stop"),jugar=$("av-jugar");
+  [cont,skip,stop,jugar].forEach(b=>b&&b.classList.add("oculto"));
+  if(modo==="tick"){ skip&&skip.classList.remove("oculto"); stop&&stop.classList.remove("oculto"); }
+  else if(modo==="pausa"){ cont&&cont.classList.remove("oculto"); skip&&skip.classList.remove("oculto"); stop&&stop.classList.remove("oculto"); }
+  else if(modo==="llegada"){ jugar&&jugar.classList.remove("oculto"); stop&&stop.classList.remove("oculto"); }
 }
 function renderTodo(){
   if(!G)return;
@@ -3756,6 +3811,7 @@ function bindJuego(){
     if(e.target.id==="av-stop"){pararAvance();return;}
     if(e.target.id==="av-cont"){avReanudar();return;}
     if(e.target.id==="av-skip"){avSaltar();return;}
+    if(e.target.id==="av-jugar"){avIrAlPartido();return;}
     if(e.target.id==="dt-guardar"){
       const k=($("dt-key").value||"").trim();
       if(!k){alert("Pega tu clave de API-Football.");return;}
