@@ -697,7 +697,7 @@ img,svg,canvas,table{max-width:100%}
   <!-- MERCADO -->
   <div id="scr-mercado" class="scr"><div class="pcf-panel">
     <div class="pcf-cab"><span>MERCADO Y FICHAJES</span><button class="btn-ang" data-go="hub">◀ VOLVER</button></div>
-    <div style="padding:10px 12px 0"><div class="banner" id="me2-banner"></div></div>
+    <div style="padding:10px 12px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div id="me2-saldo"></div><div class="banner" id="me2-banner" style="flex:1;min-width:200px"></div></div>
     <div class="filtros">
       <select id="me2-liga"></select>
       <select id="me2-club"><option value="-1">Todos los equipos</option></select>
@@ -844,7 +844,7 @@ img,svg,canvas,table{max-width:100%}
       <div class="av-barra"><i id="av-bar" style="width:0%"></i></div>
       <div class="av-evento oculto" id="av-evento"></div>
       <div class="av-log" id="av-log"></div>
-      <div style="display:flex;gap:8px;justify-content:center"><button class="btn-ang dorado oculto" id="av-cont">▶ CONTINUAR</button><button class="btn-ang peligro" id="av-stop">⏸ DETENER</button></div>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn-ang dorado oculto" id="av-cont">▶ CONTINUAR</button><button class="btn-ang" id="av-skip">⏩ IR AL PARTIDO</button><button class="btn-ang peligro" id="av-stop">⏸ DETENER</button></div>
     </div>
   </div>
 
@@ -1501,6 +1501,24 @@ const FORM_SHIFT={
   "5-3-2":{def:6,med:5,del:2},
   "5-4-1":{def:7,med:6,del:4}
 };
+/* Disposiciones exactas (x,y,pos) en ORDEN de slot (POR, DEF.., MED.., DEL..) para
+   formaciones con líneas partidas que no se dibujan bien con filas simples. */
+const FORM_LAYOUT={
+  "4-2-3-1":[{x:50,y:91,p:"POR"},
+    {x:18,y:72,p:"DEF"},{x:39,y:74,p:"DEF"},{x:61,y:74,p:"DEF"},{x:82,y:72,p:"DEF"},
+    {x:35,y:58,p:"MED"},{x:65,y:58,p:"MED"},
+    {x:22,y:40,p:"MED"},{x:50,y:42,p:"MED"},{x:78,y:40,p:"MED"},
+    {x:50,y:22,p:"DEL"}],
+  "4-1-4-1":[{x:50,y:91,p:"POR"},
+    {x:18,y:72,p:"DEF"},{x:39,y:74,p:"DEF"},{x:61,y:74,p:"DEF"},{x:82,y:72,p:"DEF"},
+    {x:50,y:60,p:"MED"},
+    {x:20,y:44,p:"MED"},{x:40,y:46,p:"MED"},{x:60,y:46,p:"MED"},{x:80,y:44,p:"MED"},
+    {x:50,y:23,p:"DEL"}],
+  "4-1-2-1-2 Rombo":[{x:50,y:91,p:"POR"},
+    {x:18,y:72,p:"DEF"},{x:39,y:74,p:"DEF"},{x:61,y:74,p:"DEF"},{x:82,y:72,p:"DEF"},
+    {x:50,y:61,p:"MED"},{x:26,y:47,p:"MED"},{x:74,y:47,p:"MED"},{x:50,y:34,p:"MED"},
+    {x:38,y:21,p:"DEL"},{x:62,y:21,p:"DEL"}]
+};
 const MENT={"Equilibrada":{gf:0,gc:0},"Ofensiva":{gf:.20,gc:.14},"Defensiva":{gf:-.16,gc:-.18}};
 const PRES={"Media":{gf:0,gc:0},"Alta":{gf:.08,gc:.05},"Baja":{gf:-.06,gc:-.05}};
 const NOMBRES=[
@@ -1607,9 +1625,18 @@ function asignarDorsales(jug){
     if(!j.dorsal){let n=2;while(usados.has(n))n++;j.dorsal=n;usados.add(n);}
   });
 }
+// Edad aproximada y plausible cuando la plantilla integrada no trae edad real
+// (las edades REALES se cargan con "Actualizar a plantillas actuales" vía API-Football).
+// Los porteros y las grandes estrellas tienden a edades de plena madurez; los suplentes, más jóvenes.
+function edadAprox(pos,r){
+  let base = r>=85?28 : r>=80?27 : r>=74?25 : r>=68?23 : 21;
+  if(pos==="POR") base+=2;            // los porteros maduran y duran más
+  base += Math.floor(Math.random()*7)-3; // ±3 de dispersión
+  return Math.max(17,Math.min(37,base));
+}
 function nuevoMundo(){
   return LIGAS.map(l=>({nombre:l.nombre,cl:l.cl,uel:l.uel,desc:l.desc,clubes:l.equipos.map(e=>{
-    const jug=e[3].map(j=>Object.assign({uid:uidSeq++,n:j[0],p:j[1],r:j[2],edad:j[3]||18+Math.floor(Math.random()*16)},nuevoJugadorProps(j[1])));
+    const jug=e[3].map(j=>Object.assign({uid:uidSeq++,n:j[0],p:j[1],r:j[2],edad:j[3]||edadAprox(j[1],j[2])},nuevoJugadorProps(j[1])));
     asignarDorsales(jug);
     return{n:e[0],abr:e[1],col:e[2],logo:logoURL(e[0],e[4]),jug};
   })}));
@@ -1676,7 +1703,8 @@ function desajusteXI(){
   d+=G.slots.filter(u=>u==null).length;
   return d;
 }
-function indispo(uid){return lesionado(uid)||!!(G.convocados&&G.convocados[uid]);}
+function sancionado(uid){return!!(G.sancionados&&G.sancionados[uid]);}
+function indispo(uid){return lesionado(uid)||!!(G.convocados&&G.convocados[uid])||sancionado(uid);}
 function rEfectivo(j){ // media efectiva: lesión/convocatoria, forma y fatiga
   propsJug(j);
   let r=j.r;
@@ -2021,7 +2049,8 @@ function jugarJornadaLiga(){
   if(Math.random()<0.65)rumorMercado();
   G.enVenta=G.enVenta||[];G.ofertasVenta=G.ofertasVenta||[];
   G.ofertasVenta=G.ofertasVenta.filter(o=>o.cad>G.evIdx);
-  G.enVenta.forEach(uid=>{
+  // Los clubes SOLO pueden ofertar/comprar a tus jugadores con el mercado abierto (como tú)
+  if(mercadoAbierto())G.enVenta.forEach(uid=>{
     const j=miClub().jug.find(x=>x.uid===uid);if(!j)return;
     if(Math.random()<0.35){
       const li=Math.floor(Math.random()*Math.min(6,G.mundo.length));
@@ -2109,9 +2138,15 @@ function jugarSiguiente(silencio){
   // guarda APARTE el último partido del usuario (la sim continua sobrescribe G.ultimo con partidos de otros equipos)
   if(G.ultimo&&G.ultimo.mi)G.ultimoMio=G.ultimo;
   ojeadoresCheck();
-  // las lesiones se recuperan con el paso de las semanas
+  // lesiones y sanciones se cumplen y descuentan SOLO en TUS partidos (1 jornada por partido jugado)
   G.lesiones=G.lesiones||{};
-  Object.keys(G.lesiones).forEach(uid=>{if(--G.lesiones[uid]<=0){delete G.lesiones[uid];}});
+  G.sancionados=G.sancionados||{};
+  if(G.ultimo&&G.ultimo.mi){
+    Object.keys(G.lesiones).forEach(uid=>{if(--G.lesiones[uid]<=0){delete G.lesiones[uid];}});
+    Object.keys(G.sancionados).forEach(uid=>{if(--G.sancionados[uid]<=0)delete G.sancionados[uid];});
+  }
+  // al pasar la jornada se reinician las negociaciones rotas (puedes volver a intentarlo)
+  G.negoRotas={};
   // forma, fatiga y moral del vestuario
   const gano=G.ultimo&&G.ultimo.mi?( (G.ultimo.mi.local?G.ultimo.mi.r.gL:G.ultimo.mi.r.gV)>(G.ultimo.mi.local?G.ultimo.mi.r.gV:G.ultimo.mi.r.gL)?1:(G.ultimo.mi.r.gL===G.ultimo.mi.r.gV?0:-1)):0;
   miClub().jug.forEach(j=>{
@@ -2263,11 +2298,23 @@ function extrasPartido(probLesion){
   const pick=arr=>arr.length?arr[Math.floor(Math.random()*arr.length)]:null;
   const tarjetas=jugs=>{const n=Math.floor(Math.random()*4);const out=[];for(let i=0;i<n;i++){const j=pick(jugs);if(j)out.push({n:j.n,min:20+Math.floor(Math.random()*70)});}return out;};
   const ex={amA:tarjetas(xi),amB:tarjetas(rival.jug),rojaA:null,rojaB:null,cambios:[],lesion:null};
-  if(Math.random()<0.05){const j=pick(xi);if(j)ex.rojaA={n:j.n,min:35+Math.floor(Math.random()*55)};}
+  if(Math.random()<0.05){const j=pick(xi);if(j){ex.rojaA={n:j.n,min:35+Math.floor(Math.random()*55)};G.sancionados=G.sancionados||{};G.sancionados[j.uid]=2;noticia("🟥 EXPULSADO: "+j.n+" ve la roja y cumplirá SANCIÓN en el próximo partido.");}}
   if(Math.random()<0.05){const j=pick(rival.jug);if(j)ex.rojaB={n:j.n,min:35+Math.floor(Math.random()*55)};}
-  const banca=miClub().jug.filter(j=>!G.xi.includes(j.uid)&&!(G.lesiones&&G.lesiones[j.uid]));
-  const salen=mezclar(xi).slice(0,3),entran=mezclar(banca).slice(0,3);
-  for(let i=0;i<Math.min(salen.length,entran.length);i++)ex.cambios.push({sale:salen[i].n,entra:entran[i].n,min:46+Math.floor(Math.random()*40)});
+  // CAMBIOS realistas (máx 5, normas UEFA): por cansancio o por el marcador
+  const banca=miClub().jug.filter(j=>!G.xi.includes(j.uid)&&!indispo(j.uid));
+  const gAx=m.local?m.r.gL:m.r.gV, gBx=m.local?m.r.gV:m.r.gL, perdiendo=gAx<gBx;
+  const ord={DEL:0,MED:1,DEF:2,POR:3};
+  const salenCand=[...xi].sort((a,b)=>(b.fat||0)-(a.fat||0)); // primero los más cansados
+  const entranCand=perdiendo?[...banca].sort((a,b)=>ord[a.p]-ord[b.p]):mezclar(banca); // perdiendo → más ataque
+  const nCambios=Math.min(5,banca.length,perdiendo?3+Math.floor(Math.random()*3):2+Math.floor(Math.random()*2));
+  for(let i=0;i<nCambios&&i<entranCand.length&&i<salenCand.length;i++){
+    const sale=salenCand[i],entra=entranCand[i];if(!sale||!entra)continue;
+    const cansado=(sale.fat||0)>=70;
+    const min=cansado?58+Math.floor(Math.random()*15):perdiendo?62+Math.floor(Math.random()*22):66+Math.floor(Math.random()*18);
+    const motivo=cansado?"🥵 cansancio":perdiendo&&entra.p==="DEL"?"⚔ ofensivo":"rotación";
+    ex.cambios.push({sale:sale.n,entra:entra.n,min,motivo});
+  }
+  ex.cambios.sort((a,b)=>a.min-b.min);
   G.lesiones=G.lesiones||{};
   let pLes=probLesion!=null?probLesion:0.12;
   if((G.entrenoTipo||"")==="fuerza")pLes*=0.7; // el trabajo físico previene lesiones
@@ -2275,11 +2322,12 @@ function extrasPartido(probLesion){
   if(Math.random()<pLes){
     const j=pick(xi.filter(x=>!G.lesiones[x.uid]));
     if(j){
-      const sem=1+Math.floor(Math.random()*6);
-      const tipo=sem<=2?"sobrecarga muscular":sem<=4?"rotura fibrilar":"lesión de ligamentos";
-      G.lesiones[j.uid]=sem;
-      ex.lesion={n:j.n,sem,tipo};
-      noticia("🚑 LESIÓN: "+j.n+" sufre una "+tipo+" y estará "+sem+" semana"+(sem>1?"s":"")+" de baja.");
+      const sev=Math.random();
+      const jor=sev<0.5?1:sev<0.85?2:3; // jornadas que se perderá según gravedad
+      const tipo=jor===1?"sobrecarga muscular":jor===2?"rotura fibrilar":"lesión de ligamentos";
+      G.lesiones[j.uid]=jor+1; // +1 porque también se descuenta en el partido en el que se lesiona
+      ex.lesion={n:j.n,jor,tipo};
+      noticia("🚑 LESIÓN: "+j.n+" sufre una "+tipo+" y se perderá "+jor+" jornada"+(jor>1?"s":"")+".");
     }
   }
   G.ultimo.extras=ex;
@@ -2374,6 +2422,12 @@ function cerrarTemporada(){
   mov(premio,"Premio por clasificación liguera (puesto "+pos+"º)");
   if(pos===1){noticia("🏆 ¡¡"+miClub().n+" CAMPEÓN DE LIGA "+anioLabel()+"!!");G.palmares.push("Liga "+anioLabel());}
   else noticia("Fin de temporada "+anioLabel()+": terminas en puesto "+pos+"º. Premio: "+fmtE(premio));
+  // AVISO de fin de contrato: jugadores en su último año (renuévalos o se irán libres)
+  const acaban=miClub().jug.filter(j=>(j.contrato||2)<=1).map(j=>j.n);
+  if(acaban.length){
+    noticia("⚠ FIN DE CONTRATO ("+acaban.length+"): "+acaban.join(", ")+". Renuévalos en CONTRATOS o se marcharán LIBRES.");
+    chatMsg("Director deportivo","📄 Míster, acaban contrato: "+acaban.join(", ")+". Renuévalos en CONTRATOS antes de que se vayan gratis.");
+  }
   G.lastClasif=ordenTabla().map(f=>f.i);
   G.lastTop4=ordenTabla().slice(0,4).map(f=>ligaG().clubes[f.i]);
   // bonos por goles pactados en fichajes
@@ -2398,13 +2452,21 @@ function cerrarTemporada(){
   }
   // evaluación del objetivo de la directiva
   if(G.objetivo){
-    if(pos<=G.objetivo.pos)noticia("✅ OBJETIVO CUMPLIDO ("+G.objetivo.txt+"). La directiva renueva su confianza en ti.");
-    else if(pos>G.objetivo.pos+4){
-      G.despedido=true;generarOfertasClub();
-      noticia("❌ DESPEDIDO: no has cumplido el objetivo ("+G.objetivo.txt+"; acabaste "+pos+"º). Hay clubes interesados en ti: elige tu nuevo banquillo en PARTIDO.");
-      tweet("OFICIAL: "+miClub().n+" destituye a su entrenador tras acabar "+pos+"º. Ya hay candidatos para sustituirle. 🔴");
+    if(pos<=G.objetivo.pos){
+      G.avisosDir=0; // se reinician los avisos al cumplir
+      noticia("✅ OBJETIVO CUMPLIDO ("+G.objetivo.txt+"). La directiva renueva su confianza en ti.");
     }
-    else noticia("⚠ Objetivo no cumplido ("+G.objetivo.txt+"), pero la directiva te concede una temporada más.");
+    // La directiva es más paciente: solo destituye si el fracaso es GRAVE (8+ puestos por debajo)
+    // o si ya ibas con un aviso y vuelves a fallar con claridad (5+ por debajo).
+    else if(pos>G.objetivo.pos+8 || ((G.avisosDir||0)>=1 && pos>G.objetivo.pos+5)){
+      G.despedido=true;generarOfertasClub();
+      noticia("❌ DESPEDIDO: tras varias decepciones la directiva te destituye (objetivo: "+G.objetivo.txt+"; acabaste "+pos+"º). Hay clubes interesados: elige banquillo en PARTIDO.");
+      tweet("OFICIAL: "+miClub().n+" destituye a su entrenador tras acabar "+pos+"º. 🔴");
+    }
+    else {
+      G.avisosDir=(G.avisosDir||0)+1;
+      noticia("⚠ Objetivo no cumplido ("+G.objetivo.txt+", acabaste "+pos+"º). La directiva confía en ti y te da otra temporada"+((G.avisosDir||0)>=1?" — pero es un AVISO, no la falles de nuevo.":".")+"");
+    }
   }
 }
 function elegirTorneoVerano(){
@@ -3211,11 +3273,13 @@ function renderInicio(){
 ================================================================== */
 let uiOk=false,scrActual="hub";
 function coordsForm(form){
-  const req=FORMS[form],sh=FORM_SHIFT[form]||{},out=[{x:50,y:91,p:"POR"}];
-  // la mentalidad también adelanta/atrasa las líneas en el campo
   const m=(typeof G!=="undefined"&&G)?G.ment:"Equilibrada";
   const mShift=m==="Ofensiva"?-4:m==="Defensiva"?5:0;
-  const cl=v=>Math.max(14,Math.min(86,v));
+  const cl=v=>Math.max(12,Math.min(88,v));
+  // formaciones con disposición exacta (4-2-3-1, 4-1-4-1, rombo) → se dibujan tal cual
+  if(FORM_LAYOUT[form])return FORM_LAYOUT[form].map(pt=>({x:pt.x,y:cl(pt.y+(pt.p==="POR"?0:mShift)),p:pt.p}));
+  // formaciones de líneas simples
+  const req=FORMS[form],sh=FORM_SHIFT[form]||{},out=[{x:50,y:91,p:"POR"}];
   const fila=(n,y,p)=>{for(let i=0;i<n;i++)out.push({x:(100/(n+1))*(i+1),y:cl(y),p});};
   fila(req.DEF,71+(sh.def||0)+mShift*0.7,"DEF");
   fila(req.MED,46+(sh.med||0)+mShift,"MED");
@@ -3273,9 +3337,9 @@ function entrarJuego(){
   if(!uiOk){bindJuego();uiOk=true;}
   irA("hub");
 }
-let selSlot=null,selBanca=null,selTit=null;
+let selSlot=null,selBanca=null,selTit=null,selRes=null;
 function irA(s){
-  scrActual=s;selSlot=null;selBanca=null;selTit=null;
+  scrActual=s;selSlot=null;selBanca=null;selTit=null;selRes=null;
   $("news-drop").classList.add("oculto");
   document.querySelectorAll("#jg .scr").forEach(x=>x.classList.remove("visible"));
   const el=$("scr-"+s);if(el)el.classList.add("visible");
@@ -3318,6 +3382,23 @@ function avSoftPause(txt){ // pausa suave: mantiene el panel y ofrece CONTINUAR 
   $("av-cont").classList.remove("oculto");
   pitido();
   renderTop();
+}
+function avSaltar(){ // ⏩ salta la animación día a día y avanza directo hasta tu próximo partido
+  if(avTimer){clearTimeout(avTimer);avTimer=null;}
+  if(!G||G.finTemporada){pararAvance();return;}
+  let pasoMsg=false,guard=0;
+  while(!G.finTemporada && !userJuegaEv(G.agenda[G.evIdx]) && guard++<2000){
+    G.evFlash=null;
+    jugarSiguiente(true);
+    // si surge un mensaje del club con decisiones, paramos ahí igualmente
+    if((G.chat||[]).length>avChat0 && G.chat[0].acciones){pasoMsg=true;break;}
+  }
+  $("av-fecha").textContent=fechaTxt(fechaActual());
+  $("av-bar").style.width="100%";
+  if(pasoMsg){pararAvance();alert("⏸ Simulación pausada: tienes un mensaje importante en GRUPO CLUB.");irA("chat");return;}
+  if(!G.finTemporada && userJuegaEv(G.agenda[G.evIdx]))
+    chatMsg("Secretaría técnica","⚽ Llega tu próximo compromiso: "+(proximoRival()?proximoRival().tipo:"")+". Prepara el once, míster.");
+  pararAvance();
 }
 function pararAvance(){
   if(avTimer){clearTimeout(avTimer);avTimer=null;}
@@ -3518,20 +3599,28 @@ function bindJuego(){
       const uid2=+pick.dataset.pick;
       const esTit=G.xi.includes(uid2);
       if(esTit){
+        if(selRes!=null){ // había un SUPLENTE elegido → entra por este titular (orden suplente→titular)
+          if(indispo(selRes)){alert("Ese suplente no está disponible (lesión, sanción o selección).");selRes=null;renderTodo();return;}
+          const idx=G.slots.indexOf(uid2);
+          if(idx>-1){G.slots[idx]=selRes;G.xi=G.slots.filter(u=>u!=null);}
+          selRes=null;selTit=null;renderTodo();return;
+        }
         if(selTit!=null&&selTit!==uid2&&G.xi.includes(selTit)){ // titular ↔ titular: intercambio de POSICIONES
           const i1=G.slots.indexOf(selTit),i2=G.slots.indexOf(uid2);
           if(i1>-1&&i2>-1){const tmp=G.slots[i1];G.slots[i1]=G.slots[i2];G.slots[i2]=tmp;}
           selTit=null;renderTodo();return;
         }
-        selTit=(selTit===uid2?null:uid2);renderTodo();return;
+        selTit=(selTit===uid2?null:uid2);selRes=null;renderTodo();return;
       }
-      if(selTit!=null){ // titular → suplente: cambio
-        if(indispo(uid2)){alert("Ese jugador no está disponible (lesión o selección).");return;}
+      // es un suplente / no convocado
+      if(selTit!=null){ // titular elegido antes → cambio (orden titular→suplente)
+        if(indispo(uid2)){alert("Ese jugador no está disponible (lesión, sanción o selección).");return;}
         const idx=G.slots.indexOf(selTit);
         if(idx>-1){G.slots[idx]=uid2;G.xi=G.slots.filter(u=>u!=null);}
-        selTit=null;renderTodo();return;
+        selTit=null;selRes=null;renderTodo();return;
       }
-      selTit=null;renderTodo();return;
+      // seleccionar primero el suplente (luego pulsas un titular para meterlo)
+      selRes=(selRes===uid2?null:uid2);selTit=null;renderTodo();return;
     }
     const cv2=e.target.closest("[data-conv]");
     if(cv2){ // convocar / desconvocar
@@ -3666,6 +3755,7 @@ function bindJuego(){
     }
     if(e.target.id==="av-stop"){pararAvance();return;}
     if(e.target.id==="av-cont"){avReanudar();return;}
+    if(e.target.id==="av-skip"){avSaltar();return;}
     if(e.target.id==="dt-guardar"){
       const k=($("dt-key").value||"").trim();
       if(!k){alert("Pega tu clave de API-Football.");return;}
@@ -3753,8 +3843,9 @@ function bindJuego(){
     if(ev.t!=="liga"&&ev.t!=="amistoso"){
       const t=torneoDe(ev.t);
       if(t.uefa){
-        if(!t.userFuera&&t.ko&&(t.ko.tipo==="se"||t.ko.tipo==="fi")){importante=true;titulo=iconoEv(ev.t)+" "+nombreComp(ev.t).toUpperCase()+" · "+(t.ko.tipo==="fi"?"¡GRAN FINAL!":"SEMIFINALES");}
-      }else if(!t.userFuera&&t.vivos.length<=4){importante=true;titulo="🏆 "+copaNombre().toUpperCase()+" · "+(t.vivos.length===2?"¡GRAN FINAL!":"SEMIFINALES");}
+        // TODOS los partidos europeos son especiales: intro de partido importante
+        if(!t.userFuera){importante=true;const fase=t.ko?({po:"PLAYOFF",oct:"OCTAVOS",cu:"CUARTOS",se:"SEMIFINAL",fi:"¡¡GRAN FINAL!!"}[t.ko.tipo]||"ELIMINATORIA"):"NOCHE EUROPEA";titulo=iconoEv(ev.t)+" "+nombreComp(ev.t).toUpperCase()+" · "+fase;}
+      }else if(!t.userFuera&&t.vivos.length<=8){importante=true;titulo="🏆 "+copaNombre().toUpperCase()+" · "+(t.vivos.length===2?"¡GRAN FINAL!":t.vivos.length<=4?"SEMIFINALES":"CUARTOS");}
     }else if(ev.t==="liga"&&pr.rival){
       const orden=ordenTabla().map(f=>f.i);
       if(orden.indexOf(G.ci)<3&&orden.indexOf(ligaG().clubes.indexOf(pr.rival))<3&&G.jornada>5){importante=true;titulo="⚽ DUELO POR EL TÍTULO";}
@@ -3764,8 +3855,12 @@ function bindJuego(){
       $("anim-tit").textContent=titulo;
       $("anim-izq").innerHTML=escudoC(miClub(),true)+`<span>${miClub().n.toUpperCase()}</span>`;
       $("anim-der").innerHTML=(pr.rival?escudoC(pr.rival,true)+`<span>${pr.rival.n.toUpperCase()}</span>`:`<span style="font-size:46px">❓</span><span>RIVAL POR SORTEO</span>`);
+      $("anim-tit").innerHTML=titulo+'<div style="font-size:12px;letter-spacing:2px;color:#9fc3d8;margin-top:8px">TOCA PARA VER EL RESULTADO ▶</div>';
       $("anim-partido").classList.remove("oculto");
-      setTimeout(()=>{$("anim-partido").classList.add("oculto");jugarSiguiente(false);despues();},1900);
+      let saltado=false;
+      const cerrarAnim=()=>{if(saltado)return;saltado=true;$("anim-partido").onclick=null;$("anim-partido").classList.add("oculto");jugarSiguiente(false);despues();};
+      $("anim-partido").onclick=cerrarAnim;   // un toque salta la intro y muestra el resultado
+      setTimeout(cerrarAnim,1300);
       return;
     }
     jugarSiguiente(false);
@@ -3897,7 +3992,7 @@ function renderAlineacion(){
      <select id="al-filtro"><option value="">Todos</option><option value="tit" ${G.alFiltro==="tit"?"selected":""}>Titulares</option><option value="res" ${G.alFiltro==="res"?"selected":""}>Reservas</option><option value="noc" ${G.alFiltro==="noc"?"selected":""}>No convocados</option></select>
      <button class="btn-ang" data-acc="auto" data-uid="0">⚡ ONCE AUTO</button>
      <button class="btn-ang" data-acc="autoles" data-uid="0">🚑 REEMPLAZAR BAJAS</button>
-     <span style="font-size:11px;color:var(--amarillo)">${selSlot!=null?"Jugador del campo seleccionado: pulsa OTRO del campo para INTERCAMBIAR sus posiciones.":selTit!=null?"Pulsa OTRO TITULAR (intercambia posiciones) o un RESERVA (cambio).":"En el CAMPO: pulsa un jugador y luego otro para intercambiar posiciones. En la LISTA: pulsa un nombre para cambios."}</span>`;
+     <span style="font-size:11px;color:var(--amarillo)">${selSlot!=null?"Jugador del campo seleccionado: pulsa OTRO del campo para INTERCAMBIAR sus posiciones.":selTit!=null?"TITULAR elegido: pulsa otro TITULAR (cambia posiciones) o un RESERVA (cambio).":selRes!=null?"SUPLENTE elegido: pulsa el TITULAR al que sustituye.":"Cambios: pulsa un TITULAR y luego un suplente, o un SUPLENTE y luego el titular. En el campo: arrastra para mover."}</span>`;
   const orden={POR:0,DEF:1,MED:2,DEL:3};
   const mejor=[...c.jug].sort((a,b)=>b.r-a.r)[0];
   const etqs=etiquetasSlots(G.form);
@@ -3910,9 +4005,9 @@ function renderAlineacion(){
     const fcol=j.forma>=72?"#3ddc84":j.forma>=52?"#ffd24d":"#ff6b6b";
     const mcol=j.moral>=72?"#3ddc84":j.moral>=52?"#ffd24d":"#ff6b6b";
     const noc=G.noConv.includes(j.uid);
-    return `<tr class="f${j.p}" style="${selTit===j.uid?"outline:2px solid #2da8ff;outline-offset:-2px;":""}${(les||conv)&&tit?"box-shadow:inset 0 0 0 100px rgba(255,40,40,.08);":""}${noc?"opacity:.55;":""}">
+    return `<tr class="f${j.p}" style="${selTit===j.uid?"outline:2px solid #2da8ff;outline-offset:-2px;":""}${selRes===j.uid?"outline:2px solid #3ddc84;outline-offset:-2px;":""}${(les||conv)&&tit?"box-shadow:inset 0 0 0 100px rgba(255,40,40,.08);":""}${noc?"opacity:.55;":""}">
       <td><span class="dorsal ${tit?"tit":""}">${j.dorsal||"–"}</span></td>
-      <td style="cursor:pointer" data-pick="${j.uid}">${G.roles&&G.roles.cap===j.uid?'<b style="color:var(--amarillo)">Ⓒ</b> ':""}${mejor&&mejor.uid===j.uid?"⭐ ":""}${j.n}${les?` <span class="lesion-tag">🚑${G.lesiones[j.uid]}s</span>`:""}${conv?" 🌍":""}${env?' <span class="venta-tag">VENTA</span>':""}${(G.cesiones||[]).some(x=>x.uid===j.uid)?' <span class="cesion-tag">CED</span>':""}</td>
+      <td style="cursor:pointer" data-pick="${j.uid}">${G.roles&&G.roles.cap===j.uid?'<b style="color:var(--amarillo)">Ⓒ</b> ':""}${mejor&&mejor.uid===j.uid?"⭐ ":""}${j.n}${les?` <span class="lesion-tag">🚑${G.lesiones[j.uid]} jorn.</span>`:""}${sancionado(j.uid)?' <span class="venta-tag" style="background:#4a1414;color:#ff9b9b">🟥 SANCIONADO</span>':""}${conv?" 🌍":""}${env?' <span class="venta-tag">VENTA</span>':""}${(G.cesiones||[]).some(x=>x.uid===j.uid)?' <span class="cesion-tag">CED</span>':""}</td>
       <td>${campoPos?`<span class="campo-pos ${mal?"mal":""}" title="Puesto en el campo${mal?" · fuera de su posición natural":""}">${campoPos}</span> `:""}${posTag(j.p)} <span style="font-size:9px;color:var(--gris)">${(j.sp||[]).join(", ")}</span></td>
       <td style="font-family:var(--mono)">${j.edad}</td>
       <td class="rat ${clasRat(j.r)}">${j.r}</td>
@@ -4061,6 +4156,8 @@ function renderClub(){
 /* ---------- mercado ---------- */
 function renderMer(){
   const merc=mercadoAbierto();
+  // cartel del dinero disponible para fichar
+  if($("me2-saldo"))$("me2-saldo").innerHTML=`<span class="tb-chip" style="border-color:${G.dinero<0?'#e51b22':'#ffd24d'};color:${G.dinero<0?'#ff9b9b':'#ffe08a'}">💰 Para fichar: ${fmtE(G.dinero)}</span>`;
   $("me2-banner").className="banner "+(merc?"abierto":"cerrado");
   $("me2-banner").textContent=merc?("VENTANA DE "+merc.toUpperCase()+" ABIERTA — verano hasta el 1 de septiembre · invierno del 2 de enero al 2 de febrero. Negocia: primero el precio con el club y después la ficha con el jugador."):"Mercado CERRADO (como el real: verano hasta el 1-sep · invierno del 2-ene al 2-feb). Puedes consultar plantillas y preparar objetivos.";
   // ofertas recibidas por tus jugadores en venta
@@ -4316,7 +4413,8 @@ function renderPar(){
       ${um.extras?`<div class="final-pie" style="flex-direction:column;gap:4px;align-items:flex-start">
         ${um.extras.amA.length||um.extras.amB.length?`<span>🟨 ${[...um.extras.amA.map(x=>x.n+" "+x.min+"'"),...um.extras.amB.map(x=>x.n+" "+x.min+"' (rival)")].join(" · ")}</span>`:""}
         ${um.extras.rojaA?`<span>🟥 ${um.extras.rojaA.n} ${um.extras.rojaA.min}'</span>`:""}${um.extras.rojaB?`<span>🟥 ${um.extras.rojaB.n} ${um.extras.rojaB.min}' (rival)</span>`:""}
-        ${um.extras.lesion?`<span class="rojo">🚑 ${um.extras.lesion.n}: ${um.extras.lesion.tipo} (${um.extras.lesion.sem} sem)</span>`:""}
+        ${um.extras.cambios&&um.extras.cambios.length?`<span>🔁 ${um.extras.cambios.map(c=>c.min+"' "+apellido(c.sale)+"→"+apellido(c.entra)+(c.motivo?" ("+c.motivo+")":"")).join(" · ")}</span>`:""}
+        ${um.extras.lesion?`<span class="rojo">🚑 ${um.extras.lesion.n}: ${um.extras.lesion.tipo} (${um.extras.lesion.jor||um.extras.lesion.sem} jornada${(um.extras.lesion.jor||1)>1?"s":""})</span>`:""}
       </div>`:""}
     </div>`;
   }else $("pa2-final").innerHTML=`<div class="aviso-tac" style="text-align:center">Aún no has jugado ningún partido. Pulsa <b>SIMULAR PARTIDO</b> abajo.</div>`;
