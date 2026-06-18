@@ -706,6 +706,8 @@ img,svg,canvas,table{max-width:100%}
       <span style="font-size:11px;color:var(--gris)" id="me2-n"></span>
     </div>
     <div class="pcf-cuerpo">
+      <div class="hub-card" id="me2-seguidos-panel"><h3>⭐ LISTA DE SEGUIMIENTO · OBJETIVOS DE FICHAJE</h3><div id="me2-seguidos"></div></div>
+      <div class="hub-card" id="me2-nego-panel"><h3>📑 MIS NEGOCIACIONES · EN CURSO / RECHAZADAS</h3><div id="me2-nego"></div></div>
       <div class="hub-card" id="me2-ofertas-panel"><h3>📨 OFERTAS RECIBIDAS POR TUS JUGADORES</h3><div id="me2-ofertas"></div></div>
       <div class="scroll-lg" id="me2-lista"></div>
     </div>
@@ -2500,6 +2502,7 @@ function nuevaTemporada(){
   generarOjeados();
   G.temporada++;G.jornada=0;G.evIdx=0;G.finTemporada=false;G.ultimo=null;G.misPartidos=[];G.historial=[];G.negoRotas={};
   G.pichichi={};G.pichSnap={};G.lesiones={};G.enVenta=[];G.ofertasVenta=[];
+  G.negociaciones=[];G.seguidos=G.seguidos||[]; // la lista de objetivos se mantiene entre temporadas
   G.tabla={};
   ligaG().clubes.forEach((c,i)=>G.tabla[i]={pj:0,g:0,e:0,p:0,gf:0,gc:0,pts:0});
   G.cal=generarCalendario(ligaG().clubes.length);
@@ -2731,6 +2734,29 @@ function ejecutarFichaje(li,ci,uid,coste){
   noticia("FICHAJE: "+j.n+" llega a "+miClub().n+" desde "+origen.n+" por "+fmtE(coste)+".");
   renderTodo();
 }
+/* ---- LISTA DE SEGUIMIENTO (objetivos de fichaje) y registro de negociaciones ---- */
+function localizarJug(uid){ // busca un jugador por uid en todo el mundo (devuelve {li,ci,c,j} o null)
+  for(let li=0;li<G.mundo.length;li++){const cls=G.mundo[li].clubes;for(let ci=0;ci<cls.length;ci++){const j=cls[ci].jug.find(x=>x.uid===uid);if(j)return{li,ci,c:cls[ci],j};}}
+  return null;
+}
+function toggleSeguir(uid){
+  G.seguidos=G.seguidos||[];
+  if(G.seguidos.includes(uid)){G.seguidos=G.seguidos.filter(x=>x!==uid);}
+  else{
+    if(G.seguidos.length>=20){alert("Tu lista de seguimiento está llena (máx. 20). Quita alguno.");return;}
+    G.seguidos.push(uid);
+    const loc=localizarJug(uid);if(loc)noticia("⭐ "+loc.j.n+" añadido a tu lista de seguimiento.");
+  }
+  renderTodo();
+}
+function quitarSeguido(uid){ G.seguidos=(G.seguidos||[]).filter(x=>x!==uid); renderTodo(); }
+function registrarNego(li,ci,uid,estado,monto){ // estado: "pendiente" | "rota" | "cerrada"
+  G.negociaciones=G.negociaciones||[];
+  const loc=localizarJug(uid)||{j:{n:"?",p:"?",r:0}};
+  let n=G.negociaciones.find(x=>x.uid===uid);
+  if(!n){n={uid,li,ci,n:loc.j.n,p:loc.j.p,r:loc.j.r};G.negociaciones.unshift(n);}
+  n.li=li;n.ci=ci;n.estado=estado;n.jor=G.jornada;if(monto!=null)n.monto=monto;
+}
 /* ---- Negociación de traspasos (oferta / contraoferta, 3 rondas) ---- */
 function abrirNego(li,ci,uid){
   const ven=mercadoAbierto();
@@ -2746,6 +2772,7 @@ function abrirNego(li,ci,uid){
     pide:Math.round(v*(1.18+Math.random()*0.27)*(clave?1.2:1)*(enVentaIA?0.82:1)),
     min:Math.round(v*(0.92+Math.random()*0.22)*(clave?1.15:1)*(enVentaIA?0.78:1)),
     salPide:Math.round(salarioJug(j)*(1.1+Math.random()*0.5)/500)*500};
+  registrarNego(li,ci,uid,"pendiente");
   renderNego("El "+c.n+" se sienta a negociar por "+j.n+".");
   $("nego-modal").classList.remove("oculto");
 }
@@ -2794,6 +2821,8 @@ function ofertarNego(){
       // ejecutar todo el acuerdo
       if(n.incl){const mio=miClub().jug.find(x=>x.uid===n.incl);if(mio){miClub().jug.splice(miClub().jug.indexOf(mio),1);c.jug.push(mio);noticia(mio.n+" entra en la operación y se marcha a "+c.n+".");if(G.xi.includes(mio.uid))autoXI();}}
       if(n.bono){G.bonos=G.bonos||[];G.bonos.push({n:j.n,clave:j.n+"·"+miClub().n,paga:Math.round(valorJug(j)*0.15)});}
+      registrarNego(n.li,n.ci,n.uid,"cerrada",n.acordado);
+      G.seguidos=(G.seguidos||[]).filter(x=>x!==n.uid); // si lo seguías, ya es tuyo
       ejecutarFichaje(n.li,n.ci,n.uid,n.acordado);
       tweet("HERE WE GO! "+j.n+" ficha por "+miClub().n+". Operación de "+Math.round(n.acordado/1e6)+"M€"+(n.incl?" más un jugador":"")+(n.bono?" con bono por goles":"")+". ✍");
       alert("¡Fichaje cerrado! "+j.n+" firma con una ficha de "+fmtE(of)+"/semana.");
@@ -2801,6 +2830,7 @@ function ofertarNego(){
     }
     if(!n.salRonda){n.salRonda=1;n.salPide=Math.round(n.salPide*0.97/500)*500;renderNego("El jugador rechaza esa ficha, pero rebaja su petición a "+fmtE(n.salPide)+"/semana. Última oportunidad.");return;}
     G.negoRotas[n.uid]=true;
+    registrarNego(n.li,n.ci,n.uid,"rota");
     cerrarNego();
     noticia("El fichaje de "+j.n+" se cae: no hay acuerdo en la ficha del jugador.");
     alert(j.n+" rechaza tu propuesta de contrato. La operación se rompe (no pagas el traspaso).");
@@ -2822,6 +2852,7 @@ function ofertarNego(){
   n.ronda++;
   if(n.ronda>3){
     G.negoRotas[n.uid]=true;
+    registrarNego(n.li,n.ci,n.uid,"rota");
     cerrarNego();
     noticia("El "+c.n+" rompe las negociaciones por "+j.n+".");
     alert("El "+c.n+" se levanta de la mesa: negociación rota por "+j.n+".");
@@ -2904,7 +2935,7 @@ function nuevaPartida(li,ci,dif){
   const mundo=nuevoMundo();
   G={li,ci,mundo,temporada:1,jornada:0,evIdx:0,form:"4-4-2",ment:"Equilibrada",pres:"Media",xi:[],
      precio:30,entren:0,ultAsist:null,movs:[],noticias:[],historial:[],misPartidos:[],palmares:[],tabla:{},lastClasif:null,lastTop4:null,finTemporada:false,ultimo:null,
-     cantera:[],cantNivel:0,negoRotas:{},nego:null,
+     cantera:[],cantNivel:0,negoRotas:{},nego:null,seguidos:[],negociaciones:[],
      lesiones:{},enVenta:[],ofertasVenta:[],cesiones:[],bonos:[],pichichi:{},pichSnap:{},mesPremios:[],tweets:[],balonOro:[],
      patro:null,patroOfertas:null,objetivo:null,despedido:false,ofertasClub:null,torneo:[],torneoPts:0,ojeados:[],roles:{},
      dif:dif||"medio",chat:[],chatVisto:0,histSaldo:[],convocados:{},ojeadoresV:[null,null,null],ojeDur:3,descubiertos:[],palco:null,ofertaBanquillo:null,pendienteClub:null,virtual:false};
@@ -3703,6 +3734,12 @@ function bindJuego(){
     if(pat){elegirPatrocinio(+pat.dataset.patro);return;}
     const ofv=e.target.closest("[data-oferta]");
     if(ofv){responderOferta(+ofv.dataset.oferta,ofv.dataset.r==="1");return;}
+    const seg=e.target.closest("[data-seguir]");
+    if(seg){toggleSeguir(+seg.dataset.seguir);return;}
+    const qseg=e.target.closest("[data-quitarseg]");
+    if(qseg){quitarSeguido(+qseg.dataset.quitarseg);return;}
+    const qneg=e.target.closest("[data-quitarneg]");
+    if(qneg){const u=+qneg.dataset.quitarneg;G.negociaciones=(G.negociaciones||[]).filter(x=>x.uid!==u);renderTodo();return;}
     const fir=e.target.closest("[data-firmar]");
     if(fir){
       if(confirm("¿Firmar por "+G.mundo[+fir.dataset.fli].clubes[+fir.dataset.fci].n+"?")){
@@ -4236,6 +4273,28 @@ function renderMer(){
     const c=G.mundo[o.li].clubes[o.ci];
     return `<div class="dato-linea"><span>${escudoC(c)} ${c.n} ofrece <b class="amarillo">${fmtE(o.monto)}</b> por ${j.n} (${j.p} · ${j.r})</span><b><button class="btn-mini primario" data-oferta="${i}" data-r="1">ACEPTAR</button> <button class="btn-mini peligro" data-oferta="${i}" data-r="0">RECHAZAR</button></b></div>`;
   }).join(""):`<div class="noticia">Sin ofertas. Marca jugadores "EN VENTA" desde ALINEACIÓN y los clubes interesados llamarán.</div>`;
+  // ⭐ LISTA DE SEGUIMIENTO (objetivos para un futuro fichaje)
+  G.seguidos=G.seguidos||[];
+  $("me2-seguidos").innerHTML=G.seguidos.length?G.seguidos.map(uid=>{
+    const loc=localizarJug(uid);
+    if(!loc)return `<div class="dato-linea"><span style="color:var(--gris)">Jugador ya no disponible (fichado o nueva temporada)</span><b><button class="btn-mini peligro" data-quitarseg="${uid}">✖</button></b></div>`;
+    const j=loc.j,roto=G.negoRotas&&G.negoRotas[uid];
+    return `<div class="dato-linea"><span>${posTag(j.p)} <b>${j.n}</b> <span style="color:var(--gris);font-size:10px">${escudoC(loc.c)} ${loc.c.n} · ${j.edad}a · ${fmtE(valorJug(j))}</span></span>
+      <b style="display:flex;gap:6px;align-items:center"><span class="rat ${clasRat(j.r)}">${j.r}</span>
+      <button class="btn-mini primario" data-acc="fichar" data-uid="${uid}" data-li="${loc.li}" data-ci="${loc.ci}" ${(!merc||roto)?"disabled":""} title="${roto?'Negociación rota: reintenta la próxima jornada':!merc?'Mercado cerrado':'Negociar fichaje'}">Negociar</button>
+      <button class="btn-mini peligro" data-quitarseg="${uid}" title="Quitar de seguimiento">✖</button></b></div>`;
+  }).join(""):`<div class="noticia">Sin objetivos guardados. Pulsa ☆ junto a cualquier jugador de la lista para seguirlo y tenerlo aquí para un futuro fichaje.</div>`;
+  // 📑 MIS NEGOCIACIONES (en curso / rechazadas / cerradas)
+  G.negociaciones=G.negociaciones||[];
+  $("me2-nego").innerHTML=G.negociaciones.length?G.negociaciones.slice(0,15).map(x=>{
+    const roto=G.negoRotas&&G.negoRotas[x.uid],loc=localizarJug(x.uid);
+    let est,color,btn="";
+    if(x.estado==="cerrada"){est="✅ FICHADO";color="#3ddc84";}
+    else if(x.estado==="rota"){if(roto){est="⛔ RECHAZADA — reintenta la próxima jornada";color="#ff9b9b";}else{est="🔄 disponible para reintentar";color="#ffd24d";}}
+    else{est="⏳ en curso";color="#ffd24d";}
+    if(x.estado!=="cerrada"&&loc)btn=`<button class="btn-mini primario" data-acc="fichar" data-uid="${x.uid}" data-li="${loc.li}" data-ci="${loc.ci}" ${(!merc||roto)?"disabled":""}>Volver a ofertar</button>`;
+    return `<div class="dato-linea"><span>${posTag(x.p)} <b>${x.n}</b> <span style="font-size:10px;color:${color}">${est}</span>${x.monto?` <span style="color:var(--gris);font-size:10px">· última oferta ${fmtE(x.monto)}</span>`:""}</span><b style="display:flex;gap:6px;align-items:center">${btn}<button class="btn-mini" data-quitarneg="${x.uid}" title="Quitar del historial">✖</button></b></div>`;
+  }).join(""):`<div class="noticia">Aún no has negociado ningún fichaje. Cuando hagas una oferta por un jugador, su estado (en curso, rechazada o cerrada) aparecerá aquí.</div>`;
   const fl=+($("me2-liga").value??-1),fc=+($("me2-club").value??-1),fp=$("me2-pos").value,txt=($("me2-busca").value||"").toLowerCase();
   const filas=[];
   G.mundo.forEach((l,li)=>{
@@ -4255,7 +4314,7 @@ function renderMer(){
   $("me2-lista").innerHTML=`<table><thead><tr><th>JUGADOR</th><th>CLUB</th><th>POS</th><th>EDAD</th><th style="text-align:right">ME</th><th style="text-align:right">VALOR</th><th>SITUACIÓN</th><th></th></tr></thead><tbody>`+
     filas.slice(0,100).map(f=>{
       const enVentaIA=f.j.uid%7===0,cedible=f.j.uid%11===0;
-      return `<tr class="f${f.j.p}"><td>${f.j.n}</td><td style="white-space:nowrap">${escudoC(f.c)} ${f.c.n}</td><td>${posTag(f.j.p)}</td><td style="font-family:var(--mono)">${f.j.edad}</td><td class="rat ${clasRat(f.j.r)}">${f.j.r}</td><td class="rat">${fmtE(f.v)}</td><td>${enVentaIA?'<span class="venta-tag">EN VENTA</span>':""}${cedible?' <span class="cesion-tag">CEDIBLE</span>':""}</td><td style="white-space:nowrap"><button class="btn-mini primario" data-acc="fichar" data-uid="${f.j.uid}" data-li="${f.li}" data-ci="${f.ci}" ${!merc?"disabled":""}>Negociar</button>${cedible?` <button class="btn-mini" data-acc="ceder" data-uid="${f.j.uid}" data-li="${f.li}" data-ci="${f.ci}" ${!merc?"disabled":""}>Cesión</button>`:""}</td></tr>`;
+      return `<tr class="f${f.j.p}"><td>${f.j.n}</td><td style="white-space:nowrap">${escudoC(f.c)} ${f.c.n}</td><td>${posTag(f.j.p)}</td><td style="font-family:var(--mono)">${f.j.edad}</td><td class="rat ${clasRat(f.j.r)}">${f.j.r}</td><td class="rat">${fmtE(f.v)}</td><td>${enVentaIA?'<span class="venta-tag">EN VENTA</span>':""}${cedible?' <span class="cesion-tag">CEDIBLE</span>':""}</td><td style="white-space:nowrap"><button class="btn-mini" data-seguir="${f.j.uid}" title="${(G.seguidos||[]).includes(f.j.uid)?'Quitar de objetivos':'Seguir para un futuro fichaje'}">${(G.seguidos||[]).includes(f.j.uid)?"★":"☆"}</button> <button class="btn-mini primario" data-acc="fichar" data-uid="${f.j.uid}" data-li="${f.li}" data-ci="${f.ci}" ${!merc?"disabled":""}>Negociar</button>${cedible?` <button class="btn-mini" data-acc="ceder" data-uid="${f.j.uid}" data-li="${f.li}" data-ci="${f.ci}" ${!merc?"disabled":""}>Cesión</button>`:""}</td></tr>`;
     }).join("")+`</tbody></table>`;
 }
 /* ---------- liga ---------- */
